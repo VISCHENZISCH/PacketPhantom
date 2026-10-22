@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PacketPhantom</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo">◆</span> Packet<b>Phantom</b></div>
+    <span id="state" class="badge">…</span>
+    <span id="source" class="muted"></span>
+    <span class="spacer"></span>
+    <button id="capture-toggle" class="btn" type="button">…</button>
+    <a id="export" class="btn ghost" href="#" download>Exporter PCAP</a>
+    <span id="clock" class="muted mono"></span>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <section id="kpis" class="kpis" aria-label="Indicateurs"></section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Trafic</h2>
+      <span id="traffic-now" class="muted"></span>
+    </div>
+    <canvas id="traffic" class="chart"></canvas>
+  </section>
+
+  <nav id="tabs" class="tabs" aria-label="Vues">
+    <button type="button" data-tab="alerts" class="active">Alertes</button>
+    <button type="button" data-tab="packets">Paquets</button>
+    <button type="button" data-tab="flows">Flux</button>
+    <button type="button" data-tab="hosts">Hôtes</button>
+    <button type="button" data-tab="analytics">Analyse</button>
+  </nav>
+
+  <div id="filterbar" class="filterbar" hidden>
+    <span class="filter-label">FILTRE</span>
+    <input id="filter" type="search" spellcheck="false" autocomplete="off"
+           placeholder="tls and ip.addr == 10.0.0.0/8 · port 53 · alert >= high">
+    <span id="filter-status" class="muted"></span>
+  </div>
+
+  <main id="view" class="card view"></main>
+
+  <dialog id="modal">
+    <div class="modal-head">
+      <h3 id="modal-title"></h3>
+      <button id="modal-close" class="btn ghost" type="button">Fermer</button>
+    </div>
+    <div id="modal-body" class="modal-body"></div>
+  </dialog>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

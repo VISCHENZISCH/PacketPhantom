@@ -1,0 +1,244 @@
+/* PacketPhantom — feuille de style. Toutes les couleurs viennent du thème actif. */
+
+Screen {
+    background: $background;
+}
+
+/* ---------------------------------------------------------- en-tête & KPI */
+
+#statusbar {
+    height: 1;
+    background: $panel;
+}
+
+#kpis {
+    height: 5;
+    padding: 0 1;
+    margin-top: 1;
+}
+
+Kpi {
+    width: 1fr;
+    height: 5;
+    margin-right: 1;
+    padding: 0 1;
+    background: $surface;
+    border: round $foreground 12%;
+}
+
+Kpi:last-of-type {
+    margin-right: 0;
+}
+
+/* ---------------------------------------------------------- onglets */
+
+#tabs {
+    height: 1fr;
+    margin: 0 1;
+}
+
+TabbedContent ContentSwitcher {
+    height: 1fr;
+}
+
+TabPane {
+    padding: 0;
+}
+
+Tabs Tab {
+    padding: 0 2;
+}
+
+Tabs Tab.-active {
+    text-style: bold;
+}
+
+/* ---------------------------------------------------------- tableaux */
+
+DataTable {
+    background: $surface;
+    scrollbar-size-vertical: 1;
+    scrollbar-size-horizontal: 1;
+    scrollbar-color: $foreground 20%;
+    scrollbar-color-hover: $primary 70%;
+    scrollbar-color-active: $primary;
+    scrollbar-background: $surface;
+    scrollbar-corner-color: $surface;
+}
+
+DataTable > .datatable--header {
+    background: $panel;
+    color: $primary;
+    text-style: bold;
+}
+
+DataTable > .datatable--header-hover {
+    background: $primary 20%;
+}
+
+#packets, #flows, #hosts, #alerts {
+    height: 1fr;
+}
+
+/* ---------------------------------------------------------- détail paquet */
+
+#detail {
+    height: 17;
+    border-top: tall $primary 35%;
+    background: $surface;
+}
+
+#pkt-tree, #pkt-hex, #follow-log {
+    scrollbar-size-vertical: 1;
+    scrollbar-size-horizontal: 1;
+    scrollbar-color: $foreground 20%;
+    scrollbar-color-hover: $primary 70%;
+    scrollbar-background: $surface;
+    scrollbar-corner-color: $surface;
+}
+
+#pkt-tree {
+    width: 1fr;
+    padding: 0 1;
+    background: $surface;
+    border-right: vkey $foreground 12%;
+    scrollbar-size-vertical: 1;
+}
+
+#detail-right {
+    width: 1fr;
+}
+
+#pkt-insight {
+    height: auto;
+    max-height: 9;
+    padding: 0 1;
+    background: $panel;
+}
+
+#pkt-hex {
+    height: 1fr;
+    padding: 0 1;
+    background: $surface;
+    scrollbar-size-vertical: 1;
+}
+
+.detail-card {
+    height: auto;
+    max-height: 14;
+    min-height: 4;
+    padding: 1 2;
+    background: $panel;
+    border-top: tall $primary 35%;
+}
+
+/* ---------------------------------------------------------- analyse */
+
+#analytics {
+    grid-size: 3 2;
+    grid-columns: 2fr 1fr 1fr;
+    grid-gutter: 1 1;
+    padding: 1 0;
+}
+
+Panel {
+    height: 100%;
+    padding: 0 1;
+    background: $surface;
+    border: round $foreground 12%;
+    border-title-color: $primary;
+    border-title-style: bold;
+}
+
+/* ---------------------------------------------------------- barre de filtre */
+
+#filterbar {
+    height: 3;
+    margin: 0 1;
+    background: $background;
+}
+
+#filter-label {
+    height: 3;
+    padding: 1 0;
+    background: $primary;
+    color: $background;
+    text-style: bold;
+}
+
+#filter {
+    width: 1fr;
+    border: tall $foreground 12%;
+    background: $surface;
+}
+
+#filter:focus {
+    border: tall $primary;
+}
+
+#filter.active {
+    border: tall $success 70%;
+}
+
+#filter.bad, #filter.bad:focus {
+    border: tall $error;
+}
+
+#filter-status {
+    width: auto;
+    min-width: 22;
+    height: 3;
+    padding: 1 1 0 2;
+}
+
+/* ---------------------------------------------------------- dialogues */
+
+Dialog {
+    align: center middle;
+    background: $background 70%;
+}
+
+.dialog {
+    width: 76;
+    height: auto;
+    max-height: 85%;
+    padding: 1 2;
+    background: $surface;
+    border: round $primary;
+    border-title-color: $primary;
+    border-title-style: bold;
+}
+
+.dialog.wide {
+    width: 92%;
+    height: 88%;
+}
+
+.dialog OptionList {
+    height: auto;
+    max-height: 20;
+    background: $surface;
+    border: none;
+}
+
+.dialog-hint {
+    color: $text-muted;
+    margin-top: 1;
+}
+
+#follow-head {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#follow-log {
+    height: 1fr;
+    background: $background;
+    padding: 0 1;
+}
+
+HelpScreen Markdown {
+    height: 1fr;
+    background: $surface;
+    overflow-y: auto;
+}

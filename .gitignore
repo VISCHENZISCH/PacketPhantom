@@ -6,6 +6,12 @@ __pycache__/
 dist/
 build/
 .pytest_cache/
+.ruff_cache/
+
+# Extension Rust compilée (maturin develop) et artefacts Cargo
+packetphantom/_core*.so
+packetphantom/_core*.pyd
+rust/target/
 
 # Environnement virtuel
 .venv/
@@ -14,8 +20,10 @@ env/
 
 # Sorties PacketPhantom
 exports/
-capture_*.pcap
+*.pcap
+*.pcapng
 *.mmdb
+*keylog*.log
 
 # IDE
 .vscode/

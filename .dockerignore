@@ -1,0 +1,8 @@
+.git
+.venv
+rust/target
+exports
+**/__pycache__
+**/*.so
+*.pcap
+*.pcapng

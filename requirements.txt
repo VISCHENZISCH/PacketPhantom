@@ -1,5 +1,9 @@
-# Core dependencies
-scapy>=2.5.0
-textual>=0.70.0
+# Dépendances d'exécution (le cœur Rust se compile avec maturin, voir README)
+scapy>=2.6.0
+textual>=8.0.0
+rich>=13.0.0
 requests>=2.28.0
-netifaces>=0.11.01. Installez [Npcap](https://nmap.org/npcap/).
+cryptography>=42
+
+# Optionnel : géolocalisation hors ligne (base GeoLite2-City.mmdb)
+# maxminddb>=2.4.0

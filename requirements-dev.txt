@@ -1,0 +1,4 @@
+-r requirements.txt
+maturin>=1.7,<2
+pytest>=8.0
+ruff>=0.6

@@ -1,0 +1,24 @@
+# Capteur PacketPhantom sous systemd (alertes NDJSON journalisées, API locale).
+# Installation : copier dans /etc/systemd/system/, adapter ExecStart et le jeton, puis
+#   systemctl daemon-reload && systemctl enable --now packetphantom
+[Unit]
+Description=PacketPhantom — capteur réseau
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/opt/packetphantom/.venv/bin/packetphantom --headless --api 127.0.0.1:8787 -i eth0
+Environment=PACKETPHANTOM_TOKEN=changez-moi
+StandardOutput=append:/var/log/packetphantom/alerts.ndjson
+LogsDirectory=packetphantom
+DynamicUser=yes
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

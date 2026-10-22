@@ -1,0 +1,22 @@
+[package]
+name = "packetphantom-core"
+version = "3.0.0"
+edition = "2021"
+description = "Cœur de décodage réseau de PacketPhantom (extension Python)"
+license = "MIT"
+publish = false
+
+[lib]
+name = "_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["abi3-py310", "multiple-pymethods"] }
+md-5 = "0.10"
+sha2 = "0.10"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+panic = "unwind"
