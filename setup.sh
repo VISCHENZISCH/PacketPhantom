@@ -1,23 +1,28 @@
-#!/bin/bash
-# PacketPhantom - Installer (Linux)
+#!/usr/bin/env bash
+# PacketPhantom - installation (Linux)
+set -e
+cd "$(dirname "$(readlink -f "$0")")"
 
-echo "[*] Installation de PacketPhantom..."
+echo "[*] Dépendances système (libpcap, venv)…"
+if command -v apt-get >/dev/null; then
+    sudo apt-get update -qq && sudo apt-get install -y libpcap0.8 python3-venv
+elif command -v dnf >/dev/null; then
+    sudo dnf install -y libpcap python3
+elif command -v pacman >/dev/null; then
+    sudo pacman -S --needed --noconfirm libpcap python
+fi
 
-# 1. Dépendances système
-echo "[*] Installation des dépendances système (libpcap-dev)..."
-sudo apt-get update && sudo apt-get install -y libpcap-dev python3-dev python3-venv
-
-# 2. Création de l'environnement virtuel
-if [ ! -d ".venv" ]; then
-    echo "[*] Création du virtualenv..."
+if [ ! -d .venv ]; then
+    echo "[*] Création de l'environnement virtuel…"
     python3 -m venv .venv
 fi
 
-# 3. Installation des dépendances Python
-echo "[*] Installation des dépendances Python..."
-.venv/bin/pip install --upgrade pip
-.venv/bin/pip install -r requirements.txt
+echo "[*] Dépendances Python…"
+.venv/bin/pip install -q --upgrade pip
+.venv/bin/pip install -q -r requirements.txt
 
-echo "[+] Installation terminée !"
-echo "[*] Pour lancer l'application, utilisez : ./run.sh"
 chmod +x run.sh
+echo "[+] Installation terminée."
+echo "    Lancer   : ./run.sh            (capture live, demande sudo)"
+echo "    Fichier  : ./run.sh -r capture.pcap"
+echo "    Aide     : ./run.sh --help"

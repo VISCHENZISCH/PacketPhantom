@@ -1,6 +1,4 @@
 @echo off
-echo [*] Demarrage de PacketPhantom...
-echo [!] Assurez-vous de lancer ce script en tant qu'Administrateur.
-
-.venv\Scripts\python main.py
-pause
+rem PacketPhantom - lanceur (Windows). A executer en tant qu Administrateur, Npcap requis.
+cd /d "%~dp0"
+.venv\Scripts\python -m packetphantom %*
