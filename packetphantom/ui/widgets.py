@@ -79,8 +79,8 @@ class Kpi(Static):
 
     def render(self):
         pal = palette_of(self)
-        if self.hero:
-            color, value_color, label_color, sub_color = "#FFE4CC", "#FFFFFF", "#FFE4CC", "#FFE4CC"
+        if self.hero:   # même cadre que les autres indicateurs, contenu entièrement orange
+            color = value_color = label_color = sub_color = pal.primary
         else:
             color = {"alert": pal.sev[4], "warn": pal.sev[2], "good": pal.good}.get(self.tone, pal.primary)
             value_color, label_color, sub_color = color if self.tone else pal.fg, pal.muted, pal.muted

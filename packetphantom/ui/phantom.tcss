@@ -25,11 +25,6 @@ Kpi {
     border: round $foreground 12%;
 }
 
-Kpi.hero {
-    background: $primary;
-    border: round $primary;
-}
-
 Kpi:last-of-type {
     margin-right: 0;
 }
