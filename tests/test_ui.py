@@ -53,43 +53,36 @@ def test_full_ui_session(pcap, tmp_path, monkeypatch):
 
             # Filtre d'affichage saisi au clavier
             await pilot.press("slash", *"tls", "space", *"or", "space", *"dns", "enter")
-            await pilot.pause(0.2)
-            assert packets.row_count == 3
+            await wait_for(pilot, lambda: packets.row_count == 3)
             assert not app.apply_filter("port ==") and packets.row_count == 3
             await pilot.press("escape")
-            await pilot.pause(0.1)
-            assert packets.row_count == 11
+            await wait_for(pilot, lambda: packets.row_count == 11)
 
             # Suivi de flux
             app.apply_filter("http", select=6)
             packets.focus()
             await pilot.press("f")
-            await pilot.pause(0.2)
-            assert isinstance(app.screen, FollowStreamScreen)
+            await wait_for(pilot, lambda: isinstance(app.screen, FollowStreamScreen))
             await pilot.press("h", "d", "escape")
 
             # Onglets
-            for key in "2345":
+            for key, table in (("2", "#flows"), ("3", "#hosts"), ("4", "#alerts")):
                 await pilot.press(key)
-                await pilot.pause(0.3)
-            assert app.query_one("#hosts").row_count >= 3
-            assert app.query_one("#flows").row_count >= 3
-            assert app.query_one("#alerts").row_count >= 2
+                await wait_for(pilot, lambda table=table: app.query_one(table).row_count >= 2)
+            await pilot.press("5")
 
             # Pivot depuis une alerte
             await pilot.press("4")
             app.query_one("#alerts").focus()
             await pilot.press("enter")
-            await pilot.pause(0.2)
-            assert app.query_one("#tabs").active == "tab-packets" and app._filter_text
+            await wait_for(pilot, lambda: app.query_one("#tabs").active == "tab-packets" and app._filter_text)
 
             # Thème, pause, aide
             await pilot.press("t")
             await pilot.pause(0.2)
             assert app.theme == "phantom-light"
             await pilot.press("p", "p", "question_mark")
-            await pilot.pause(0.1)
-            assert isinstance(app.screen, HelpScreen)
+            await wait_for(pilot, lambda: isinstance(app.screen, HelpScreen))
             await pilot.press("escape")
 
             # Exports
@@ -98,8 +91,7 @@ def test_full_ui_session(pcap, tmp_path, monkeypatch):
                 assert path.exists() and path.stat().st_size > 0, kind
 
             await pilot.press("c")
-            await pilot.pause(0.1)
-            assert packets.row_count == 0
+            await wait_for(pilot, lambda: packets.row_count == 0)
         engine.close()
 
     asyncio.run(scenario())

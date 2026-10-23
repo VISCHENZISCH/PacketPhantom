@@ -7,6 +7,11 @@ from . import __version__
 from .engine import Engine
 from .geoip import GeoResolver
 
+ENCRYPTED = {"TLS", "QUIC", "SSH", "HTTPS", "HTTPS-ALT", "DOT", "IMAPS", "POP3S", "SMTPS", "LDAPS",
+             "WIREGUARD", "OPENVPN", "ESP"}
+CLEARTEXT = {"HTTP", "HTTP-ALT", "FTP", "TELNET", "POP3", "IMAP", "SMTP", "DNS", "MDNS", "LLMNR", "SNMP",
+             "SYSLOG", "TFTP", "LDAP", "NBNS", "MQTT", "REDIS", "MEMCACHED"}
+
 
 def status(engine: Engine, geo: GeoResolver) -> dict:
     engine.poll_health()
@@ -33,6 +38,8 @@ def rankings(engine: Engine, geo: GeoResolver, limit: int = 10) -> dict:
         services = st.services.most_common(limit)
         hosts = sorted(engine.hosts.values(), key=lambda h: h.bytes, reverse=True)
         total = st.total or 1
+        encrypted = sum(st.protocols[p] for p in ENCRYPTED)
+        cleartext = sum(st.protocols[p] for p in CLEARTEXT)
     countries: Counter[str] = Counter()
     names: dict[str, str] = {}
     for h in hosts:
@@ -46,4 +53,6 @@ def rankings(engine: Engine, geo: GeoResolver, limit: int = 10) -> dict:
         "domains": [{"name": d, "count": c} for d, c in domains],
         "services": [{"name": s, "count": c} for s, c in services],
         "countries": [{"code": code, "name": names[code], "bytes": b} for code, b in countries.most_common(limit)],
+        "encryption": {"encrypted": encrypted, "cleartext": cleartext,
+                       "other": max(0, st.total - encrypted - cleartext)},
     }

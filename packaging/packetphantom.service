@@ -2,7 +2,7 @@
 # Installation : copier dans /etc/systemd/system/, adapter ExecStart et le jeton, puis
 #   systemctl daemon-reload && systemctl enable --now packetphantom
 [Unit]
-Description=PacketPhantom — capteur réseau
+Description=PacketPhantom - capteur réseau
 After=network-online.target
 Wants=network-online.target
 

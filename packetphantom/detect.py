@@ -167,7 +167,7 @@ class Detector:
         reason = SUSPICIOUS_PORTS.get(pkt.dport)
         if reason and self._once(("port", pkt.src, pkt.dst, pkt.dport), pkt.ts, 300):
             out.append(Finding(MEDIUM, "Port suspect", f"Connexion vers le port {pkt.dport}",
-                               f"{pkt.src} → {pkt.dst}:{pkt.dport} — {reason}"))
+                               f"{pkt.src} → {pkt.dst}:{pkt.dport} - {reason}"))
 
     def _http_credentials(self, pkt: Packet, request, out: list[Finding]) -> None:
         where = f"{request.host or pkt.dst}{request.path.partition('?')[0]}"
@@ -234,7 +234,7 @@ class Detector:
                                f"{pkt.src} a demandé {qname} ({len(qname)} car., label de {len(longest)} car.)"))
         elif len(longest) >= 16 and (bits := entropy(longest)) > 3.7 and self._once(("dga", pkt.src, base), pkt.ts, 300):
             out.append(Finding(LOW, "Domaine suspect", f"Domaine à forte entropie : {qname}",
-                               f"Entropie {bits:.2f} bits/car. — DGA ou sous-domaine aléatoire ?"))
+                               f"Entropie {bits:.2f} bits/car. - DGA ou sous-domaine aléatoire ?"))
 
     def _legacy_tls(self, pkt: Packet, hello, out: list[Finding]) -> None:
         name = TLS_LEGACY.get(hello.version)

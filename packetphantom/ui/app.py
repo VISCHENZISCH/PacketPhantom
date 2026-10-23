@@ -26,18 +26,19 @@ from .theme import (
     PHANTOM_LIGHT,
     SEV_NAMES,
     Palette,
-    area_chart,
     fmt_bits,
     fmt_bytes,
     fmt_count,
     fmt_duration,
     fmt_time,
+    pill_chart,
 )
 from .widgets import Kpi, Panel, StatusBar, build_tree, hexdump_lines, insight, ranking
 
 TABS = ["tab-packets", "tab-flows", "tab-hosts", "tab-alerts", "tab-analytics"]
 STATE_TONES = {"ESTABLISHED": 0, "RESET": 4, "SYN": 2, "SYN-ACK": 2, "FIN": 1, "CLOSED": 1}
 MAX_ALERT_ROWS = 5000
+TRAFFIC_BUCKETS = 8
 TABLE_COLUMNS = {
     "#flows": (("#", "id"), ("Proto", "app"), ("Client", "client"), ("Serveur", "server"), ("Pays", "geo"),
                ("Paquets", "packets"), ("Octets", "bytes"), ("Durée", "duration"), ("État", "state"),
@@ -117,7 +118,7 @@ class PhantomApp(App):
         with Horizontal(id="kpis"):
             for label, kpi_id in (("Paquets", "packets"), ("Paquets / s", "pps"), ("Débit", "bps"),
                                   ("Flux", "flows"), ("Hôtes", "hosts"), ("Alertes", "alerts")):
-                yield Kpi(label, id=f"kpi-{kpi_id}")
+                yield Kpi(label, hero=kpi_id == "packets", id=f"kpi-{kpi_id}")
         with TabbedContent(id="tabs", initial="tab-packets"):
             with TabPane("Paquets", id="tab-packets"):
                 yield DataTable(id="packets", cursor_type="row")
@@ -135,7 +136,7 @@ class PhantomApp(App):
                 yield DataTable(id="alerts", cursor_type="row")
                 yield Static(id="alert-detail", classes="detail-card")
             with TabPane("Analyse", id="tab-analytics"), Grid(id="analytics"):
-                yield Panel("Trafic — 120 dernières secondes", id="an-traffic")
+                yield Panel("Trafic - 120 dernières secondes", id="an-traffic")
                 yield Panel("Protocoles", id="an-protocols")
                 yield Panel("Hôtes les plus actifs", id="an-talkers")
                 yield Panel("Domaines (DNS · SNI · HTTP)", id="an-domains")
@@ -490,7 +491,7 @@ class PhantomApp(App):
         if info is None:
             return Text("…", style=pal.dim)
         if info.country in ("LAN", "??"):
-            return Text(info.country if info.country == "LAN" else "—", style=pal.dim)
+            return Text(info.country if info.country == "LAN" else "-", style=pal.dim)
         return Text(info.short, style=pal.accent)
 
     @staticmethod
@@ -530,7 +531,7 @@ class PhantomApp(App):
                 Text(f"{f.server}:{f.sport}" if f.sport is not None else f.server, style=pal.fg),
                 self._geo_label(f.server), Text(fmt_count(f.packets), justify="right"),
                 Text(fmt_bytes(f.bytes), justify="right"), Text(fmt_duration(f.duration), style=pal.muted),
-                Text(f.state or "—", style=pal.good if tone == 0 else pal.sev.get(tone, pal.muted)),
+                Text(f.state or "-", style=pal.good if tone == 0 else pal.sev.get(tone, pal.muted)),
                 Text(f.label, style=pal.accent), Text(fmt_time(f.last)[:8], style=pal.muted),
             ), str(f.id)
         self._rebuild_table(self.query_one("#flows", DataTable), "flows", flows, row)
@@ -543,10 +544,10 @@ class PhantomApp(App):
         def row(h):
             names = sorted(h.names)
             return (
-                Text(h.ip, style=f"bold {pal.fg}"), Text(h.mac or "—", style=pal.muted),
-                Text(f"{h.os} {h.os_conf}%" if h.os else "—", style=pal.fg if h.os_conf >= 60 else pal.muted),
+                Text(h.ip, style=f"bold {pal.fg}"), Text(h.mac or "-", style=pal.muted),
+                Text(f"{h.os} {h.os_conf}%" if h.os else "-", style=pal.fg if h.os_conf >= 60 else pal.muted),
                 self._geo_label(h.ip),
-                Text(", ".join(names[:2]) + (f" +{len(names) - 2}" if len(names) > 2 else ""), style=pal.good),
+                Text(", ".join(names[:2]) + (f" +{len(names) - 2}" if len(names) > 2 else ""), style=pal.accent),
                 Text(fmt_bytes(h.bytes_tx), justify="right"), Text(fmt_bytes(h.bytes_rx), justify="right"),
                 Text(str(len(h.peers)), justify="right"), Text(" ".join(sorted(h.services)[:4]), style=pal.accent),
                 Text(fmt_time(h.last)[:8], style=pal.muted),
@@ -588,9 +589,9 @@ class PhantomApp(App):
         grid.add_column(overflow="fold")
         for label, value, style in (
             ("Système", f"{h.os or 'inconnu'}" + (f"  (confiance {h.os_conf}%)" if h.os else ""), pal.fg),
-            ("MAC", h.mac or "—", pal.fg),
-            ("Noms", ", ".join(names) or "—", pal.good),
-            ("Services", ", ".join(services) or "—", pal.accent),
+            ("MAC", h.mac or "-", pal.fg),
+            ("Noms", ", ".join(names) or "-", pal.accent),
+            ("Services", ", ".join(services) or "-", pal.accent),
             ("User-Agents", "\n".join(agents[:4]), pal.fg),
             ("Trafic", f"émis {fmt_bytes(h.bytes_tx)} ({fmt_count(h.pkts_tx)} pkts) · reçus {fmt_bytes(h.bytes_rx)} "
                        f"({fmt_count(h.pkts_rx)} pkts) · {len(h.peers)} pairs", pal.fg),
@@ -668,22 +669,23 @@ class PhantomApp(App):
         pps, bps = status["pps"], status["bps"]
 
         traffic = self.query_one("#an-traffic", Panel)
-        width, height = max(10, traffic.size.width - 4), max(2, (traffic.size.height - 5) // 2)
-        charts = []
-        for label, values, shown, color in (("Débit ", bps, fmt_bits, pal.primary),
-                                            ("Paquets/s ", pps, fmt_count, pal.accent)):
-            head = Text(label, style=pal.muted)
-            head.append(shown(values[-1]), style=f"bold {color}")
-            head.append(f"   max {shown(max(values))}", style=pal.muted)
-            charts += [head, *area_chart(values, width, height, color)]
-        traffic.update(Group(*charts))
+        head = Text("Débit ", style=pal.muted)
+        head.append(fmt_bits(bps[-1]), style=f"bold {pal.primary}")
+        head.append(f"   max {fmt_bits(max(bps))}   ·   ", style=pal.muted)
+        head.append(f"{fmt_count(pps[-1])} paquets/s", style=f"bold {pal.fg}")
+        period = len(bps) // TRAFFIC_BUCKETS
+        labels = [time.strftime("%M:%S", time.localtime(time.time() - (TRAFFIC_BUCKETS - 1 - i) * period))
+                  for i in range(TRAFFIC_BUCKETS)]
+        chart = pill_chart(bps, max(16, traffic.size.width - 4), max(3, traffic.size.height - 5), pal, labels)
+        traffic.update(Group(head, Text(""), *chart))
 
         panels = {
             "#an-protocols": ([(p["name"], p["count"], f"{p['share']:6.1%}") for p in data["protocols"]], None),
             "#an-talkers": ([(f"{t['ip']}  {t['name']}".strip(), t["bytes"], fmt_bytes(t["bytes"]))
                              for t in data["talkers"]], pal.primary),
             "#an-domains": ([(d["name"], d["count"], fmt_count(d["count"])) for d in data["domains"]], pal.accent),
-            "#an-services": ([(s["name"], s["count"], f"{fmt_count(s['count'])} cnx") for s in data["services"]], pal.good),
+            "#an-services": ([(s["name"], s["count"], f"{fmt_count(s['count'])} cnx") for s in data["services"]],
+                             pal.strong),
             "#an-countries": ([(f"{c['code']}  {c['name']}", c["bytes"], fmt_bytes(c["bytes"]))
                                for c in data["countries"]], pal.server),
         }
@@ -711,7 +713,7 @@ class PhantomApp(App):
         self.paused = not self.paused
         if not self.paused:
             self.rebuild_packets(select=self.selected_pid)
-        self.notify("Affichage figé — la capture continue" if self.paused else "Affichage repris", timeout=2)
+        self.notify("Affichage figé - la capture continue" if self.paused else "Affichage repris", timeout=2)
         self.second()
 
     def action_toggle_theme(self) -> None:

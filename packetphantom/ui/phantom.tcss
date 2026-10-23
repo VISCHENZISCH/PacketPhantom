@@ -1,4 +1,4 @@
-/* PacketPhantom — feuille de style. Toutes les couleurs viennent du thème actif. */
+/* PacketPhantom - feuille de style. Toutes les couleurs viennent du thème actif. */
 
 Screen {
     background: $background;
@@ -24,6 +24,11 @@ Kpi {
     padding: 0 1;
     background: $surface;
     border: round $foreground 12%;
+}
+
+Kpi.hero {
+    background: $primary;
+    border: round $primary;
 }
 
 Kpi:last-of-type {

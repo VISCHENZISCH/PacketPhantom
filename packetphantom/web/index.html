@@ -5,51 +5,175 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PacketPhantom</title>
   <link rel="stylesheet" href="style.css">
+  <script src="theme.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand"><span class="logo">◆</span> Packet<b>Phantom</b></div>
-    <span id="state" class="badge">…</span>
-    <span id="source" class="muted"></span>
-    <span class="spacer"></span>
-    <button id="capture-toggle" class="btn" type="button">…</button>
-    <a id="export" class="btn ghost" href="#" download>Exporter PCAP</a>
-    <span id="clock" class="muted mono"></span>
-  </header>
+  <!-- Motifs partagés (référencés par url(#…)), dans un SVG toujours rendu -->
+  <svg class="svg-defs" aria-hidden="true" focusable="false">
+    <defs>
+      <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect class="hatch-bg" width="7" height="7"></rect>
+        <line class="hatch-line" x1="0" y1="0" x2="0" y2="7"></line>
+      </pattern>
+    </defs>
+  </svg>
+  <div class="app">
+    <!-- ============================================================ barre latérale -->
+    <aside class="sidebar">
+      <a class="brand" href="#" data-view="dashboard">
+        <span class="brand-mark"><span></span></span> PacketPhantom
+      </a>
 
-  <div id="banner" class="banner" hidden></div>
+      <nav class="nav" aria-label="Navigation">
+        <p class="nav-title">MENU</p>
+        <button class="nav-item active" type="button" data-view="dashboard"><i data-icon="grid"></i>Tableau de bord</button>
+        <button class="nav-item" type="button" data-view="packets"><i data-icon="list"></i>Paquets</button>
+        <button class="nav-item" type="button" data-view="flows"><i data-icon="flow"></i>Flux</button>
+        <button class="nav-item" type="button" data-view="hosts"><i data-icon="server"></i>Hôtes</button>
+        <button class="nav-item" type="button" data-view="alerts"><i data-icon="bell"></i>Alertes<span id="nav-badge" class="nav-badge" hidden></span></button>
+        <button class="nav-item" type="button" data-view="analytics"><i data-icon="chart"></i>Analyse</button>
 
-  <section id="kpis" class="kpis" aria-label="Indicateurs"></section>
+        <p class="nav-title">GÉNÉRAL</p>
+        <button class="nav-item" type="button" data-action="export"><i data-icon="download"></i>Exporter PCAP</button>
+        <button class="nav-item" type="button" data-action="theme"><i data-icon="moon" class="theme-icon"></i><span class="theme-label">Thème sombre</span></button>
+        <button class="nav-item" type="button" data-action="help"><i data-icon="help"></i>Aide &amp; API</button>
+      </nav>
 
-  <section class="card">
-    <div class="card-head">
-      <h2>Trafic</h2>
-      <span id="traffic-now" class="muted"></span>
+      <section class="promo">
+        <span class="promo-icon"><i data-icon="radar"></i></span>
+        <h4>Capture en direct</h4>
+        <p id="promo-text">Interface -</p>
+        <button class="btn btn-light btn-block" type="button" data-action="capture"><span class="capture-label" data-start="Démarrer" data-stop="Arrêter">Démarrer</span></button>
+      </section>
+    </aside>
+
+    <!-- ============================================================ zone principale -->
+    <div class="main">
+      <header class="topbar">
+        <label class="search">
+          <i data-icon="search"></i>
+          <input id="filter" type="search" spellcheck="false" autocomplete="off"
+                 placeholder="Filtrer les paquets…  tls and port 443">
+          <kbd>/</kbd>
+        </label>
+        <div class="top-actions">
+          <button class="icon-btn" type="button" data-action="theme" aria-label="Changer de thème"><i data-icon="moon" class="theme-icon"></i></button>
+          <button class="icon-btn" type="button" data-view="alerts" aria-label="Alertes"><i data-icon="bell"></i><span id="bell-dot" class="dot" hidden></span></button>
+          <div class="source">
+            <span class="avatar"><i data-icon="wifi"></i></span>
+            <div><b id="source-name">-</b><small id="source-state">…</small></div>
+          </div>
+        </div>
+      </header>
+
+      <div id="banner" class="banner" hidden></div>
+
+      <!-- ------------------------------------------------------ tableau de bord -->
+      <section id="page-dashboard" class="page">
+        <div class="page-head">
+          <div>
+            <h1>Tableau de bord</h1>
+            <p>Surveillez, analysez et investiguez votre trafic en temps réel.</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary" type="button" data-action="capture"><i data-icon="play" class="capture-icon"></i><span class="capture-label" data-start="Démarrer la capture" data-stop="Arrêter la capture">Démarrer la capture</span></button>
+            <button class="btn btn-outline" type="button" data-action="export">Exporter PCAP</button>
+          </div>
+        </div>
+
+        <div class="dash-grid">
+          <article class="card kpi kpi-hero" data-kpi="packets">
+            <header><h3>Paquets</h3><button class="round-btn" type="button" data-view="packets" aria-label="Voir les paquets"><i data-icon="arrow"></i></button></header>
+            <strong class="kpi-value">-</strong>
+            <p class="kpi-trend"><span class="chip"></span><span class="trend-text"></span></p>
+          </article>
+          <article class="card kpi" data-kpi="traffic">
+            <header><h3>Débit</h3><button class="round-btn" type="button" data-view="analytics" aria-label="Voir l'analyse"><i data-icon="arrow"></i></button></header>
+            <strong class="kpi-value">-</strong>
+            <p class="kpi-trend"><span class="chip"></span><span class="trend-text"></span></p>
+          </article>
+          <article class="card kpi" data-kpi="flows">
+            <header><h3>Flux</h3><button class="round-btn" type="button" data-view="flows" aria-label="Voir les flux"><i data-icon="arrow"></i></button></header>
+            <strong class="kpi-value">-</strong>
+            <p class="kpi-trend"><span class="chip"></span><span class="trend-text"></span></p>
+          </article>
+          <article class="card kpi" data-kpi="alerts">
+            <header><h3>Alertes</h3><button class="round-btn" type="button" data-view="alerts" aria-label="Voir les alertes"><i data-icon="arrow"></i></button></header>
+            <strong class="kpi-value">-</strong>
+            <p class="kpi-trend"><span class="chip"></span><span class="trend-text"></span></p>
+          </article>
+
+          <article class="card traffic-card">
+            <header class="card-head"><h3>Trafic</h3><span class="muted" id="traffic-now"></span></header>
+            <div id="pills" class="pills"></div>
+          </article>
+
+          <article class="card reminder-card">
+            <h3>Dernière alerte</h3>
+            <p id="last-alert-title" class="reminder-title">Aucune alerte</p>
+            <p id="last-alert-meta" class="muted">Le réseau semble calme.</p>
+            <button id="last-alert-open" class="btn btn-primary btn-block" type="button" disabled><i data-icon="search"></i>Voir le paquet</button>
+          </article>
+
+          <article class="card list-card hosts-card">
+            <header class="card-head"><h3>Hôtes actifs</h3><button class="btn btn-outline btn-sm" type="button" data-view="hosts"><i data-icon="plus"></i>Tout voir</button></header>
+            <ul id="talkers" class="item-list"></ul>
+          </article>
+
+          <article class="card list-card alerts-card">
+            <header class="card-head"><h3>Alertes récentes</h3><button class="btn btn-outline btn-sm" type="button" data-view="alerts"><i data-icon="plus"></i>Tout voir</button></header>
+            <ul id="recent-alerts" class="item-list timeline"></ul>
+          </article>
+
+          <article class="card gauge-card">
+            <h3>Chiffrement du trafic</h3>
+            <div class="gauge">
+              <svg viewBox="0 0 220 120" role="img" aria-labelledby="gauge-value">
+                <path class="gauge-track" d="M 20 110 A 90 90 0 0 1 200 110" pathLength="100"></path>
+                <path class="gauge-seg seg-encrypted" d="M 20 110 A 90 90 0 0 1 200 110" pathLength="100"></path>
+                <path class="gauge-seg seg-cleartext" d="M 20 110 A 90 90 0 0 1 200 110" pathLength="100"></path>
+                <path class="gauge-seg seg-other" d="M 20 110 A 90 90 0 0 1 200 110" pathLength="100"></path>
+              </svg>
+              <div class="gauge-center"><strong id="gauge-value">-</strong><span>Trafic chiffré</span></div>
+            </div>
+            <ul class="legend">
+              <li><span class="swatch encrypted"></span>Chiffré</li>
+              <li><span class="swatch cleartext"></span>En clair</li>
+              <li><span class="swatch other"></span>Autre</li>
+            </ul>
+          </article>
+
+          <article class="card timer-card">
+            <h3>Durée de capture</h3>
+            <strong id="uptime" class="timer-value">00:00:00</strong>
+            <div class="timer-actions">
+              <button class="timer-btn" type="button" data-action="freeze" aria-label="Figer l'affichage"><i data-icon="pause" class="freeze-icon solid"></i></button>
+              <button class="timer-btn danger" type="button" data-action="capture" aria-label="Démarrer ou arrêter la capture"><i data-icon="stop" class="capture-icon solid"></i></button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------ vues en liste -->
+      <section id="page-list" class="page" hidden>
+        <div class="page-head">
+          <div>
+            <h1 id="list-title"></h1>
+            <p id="list-subtitle"></p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-outline" type="button" data-action="export">Exporter PCAP</button>
+          </div>
+        </div>
+        <div class="card table-card"><div id="view" class="table-wrap"></div></div>
+      </section>
     </div>
-    <canvas id="traffic" class="chart"></canvas>
-  </section>
-
-  <nav id="tabs" class="tabs" aria-label="Vues">
-    <button type="button" data-tab="alerts" class="active">Alertes</button>
-    <button type="button" data-tab="packets">Paquets</button>
-    <button type="button" data-tab="flows">Flux</button>
-    <button type="button" data-tab="hosts">Hôtes</button>
-    <button type="button" data-tab="analytics">Analyse</button>
-  </nav>
-
-  <div id="filterbar" class="filterbar" hidden>
-    <span class="filter-label">FILTRE</span>
-    <input id="filter" type="search" spellcheck="false" autocomplete="off"
-           placeholder="tls and ip.addr == 10.0.0.0/8 · port 53 · alert >= high">
-    <span id="filter-status" class="muted"></span>
   </div>
-
-  <main id="view" class="card view"></main>
 
   <dialog id="modal">
     <div class="modal-head">
       <h3 id="modal-title"></h3>
-      <button id="modal-close" class="btn ghost" type="button">Fermer</button>
+      <button id="modal-close" class="btn btn-outline btn-sm" type="button">Fermer</button>
     </div>
     <div id="modal-body" class="modal-body"></div>
   </dialog>

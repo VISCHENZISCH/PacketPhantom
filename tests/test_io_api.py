@@ -92,7 +92,8 @@ def test_api_endpoints(api, tmp_path):
 
     assert get(base, "/api/hosts").json()["items"][0]["ip"]
     assert get(base, "/api/alerts", after=0).json()["items"][0]["title"] == "HTTP Basic : admin"
-    assert get(base, "/api/analytics").json()["protocols"]
+    analytics = get(base, "/api/analytics").json()
+    assert analytics["protocols"] and analytics["encryption"] == {"encrypted": 0, "cleartext": 2, "other": 2}
 
     pcap = get(base, "/api/export.pcap", filter="dns")
     assert pcap.headers["Content-Type"] == "application/vnd.tcpdump.pcap"

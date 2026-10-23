@@ -264,7 +264,7 @@ impl Packet {
         self.domain = ch.sni.clone();
         self.ja3 = ch.ja3.clone();
         self.ja4 = ch.ja4.clone();
-        let sni = if ch.sni.is_empty() { "—" } else { &ch.sni };
+        let sni = if ch.sni.is_empty() { "-" } else { &ch.sni };
         self.info = format!("Client Hello  SNI={sni}  {}", crate::app::tls::version_name(ch.version));
         self.set_app(App::ClientHello(ch));
     }

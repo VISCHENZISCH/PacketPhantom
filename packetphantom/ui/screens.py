@@ -215,7 +215,7 @@ HELP = """\
 | `o` | Ouvrir un fichier pcap | `e` | Exporter |
 | `f` | Suivre le flux (déchiffré si keylog) | `g` | Filtrer la conversation |
 | `p` | Figer / reprendre l'affichage | `c` | Effacer la session |
-| `1`–`5` | Changer d'onglet | `t` | Thème sombre / clair |
+| `1`-`5` | Changer d'onglet | `t` | Thème sombre / clair |
 | `Entrée` | Pivot : flux / hôte / alerte → paquets | `Échap` | Quitter le filtre / l'effacer |
 | `?` | Cette aide | `q` | Quitter |
 
@@ -248,4 +248,4 @@ class HelpScreen(Dialog):
             yield Markdown(HELP)
 
     def on_mount(self) -> None:
-        self.query_one(".dialog").border_title = "Aide — PacketPhantom"
+        self.query_one(".dialog").border_title = "Aide - PacketPhantom"

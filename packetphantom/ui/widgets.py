@@ -66,10 +66,11 @@ class StatusBar(Static):
 class Kpi(Static):
     """Indicateur : libellé, valeur, tendance (sparkline)."""
 
-    def __init__(self, label: str, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, label: str, hero: bool = False, **kwargs):
+        super().__init__(classes="hero" if hero else "", **kwargs)
         self.label = label
-        self.value, self.sub, self.tone = "—", "", ""
+        self.hero = hero
+        self.value, self.sub, self.tone = "-", "", ""
         self.history: list[float] = []
 
     def set(self, value: str, sub: str = "", history=None, tone: str = "") -> None:
@@ -79,12 +80,16 @@ class Kpi(Static):
 
     def render(self):
         pal = palette_of(self)
-        color = {"alert": pal.sev[4], "warn": pal.sev[2], "good": pal.good}.get(self.tone, pal.primary)
-        value = Text(self.value, style=f"bold {color if self.tone else pal.fg}")
+        if self.hero:
+            color, value_color, label_color, sub_color = "#FFE4CC", "#FFFFFF", "#FFE4CC", "#FFE4CC"
+        else:
+            color = {"alert": pal.sev[4], "warn": pal.sev[2], "good": pal.good}.get(self.tone, pal.primary)
+            value_color, label_color, sub_color = color if self.tone else pal.fg, pal.muted, pal.muted
+        value = Text(self.value, style=f"bold {value_color}")
         if self.sub:
-            value.append(f"  {self.sub}", style=pal.muted)
+            value.append(f"  {self.sub}", style=sub_color)
         trend = sparkline(self.history, max(4, self.size.width - 2), color) if self.history else Text("")
-        return Group(Text(self.label.upper(), style=f"bold {pal.muted}"), value, trend)
+        return Group(Text(self.label.upper(), style=f"bold {label_color}"), value, trend)
 
 
 class Panel(Static):
@@ -123,7 +128,7 @@ def build_tree(tree: Tree, pkt: Packet, pal: Palette) -> None:
         node = tree.root.add(Text(layer.name, style=f"bold {pal.proto_color(layer.name.split()[0])}"), expand=True)
         for name, value in layer.fields:
             label = Text(f"{name}: " if name else "", style=pal.muted)
-            label.append(value, style=pal.good if not name else pal.fg)
+            label.append(value, style=pal.accent if not name else pal.fg)
             node.add_leaf(label)
     tree.root.expand()
 
@@ -150,7 +155,7 @@ def insight(pkt: Packet, flow, src_host, dst_host, alerts: list[Alert], geo, pal
         t.append(f"#{flow.id} ", style=f"bold {pal.primary}")
         t.append(f"{flow.app or flow.l4}  ", style=f"bold {pal.proto_color(flow.app or flow.l4)}")
         t.append(f"{flow.client}:{flow.cport or ''} → {flow.server}:{flow.sport or ''}  ", style=pal.fg)
-        t.append(f"{flow.state or '—'} · {flow.packets} pkts · {fmt_bytes(flow.bytes)} · {fmt_duration(flow.duration)}",
+        t.append(f"{flow.state or '-'} · {flow.packets} pkts · {fmt_bytes(flow.bytes)} · {fmt_duration(flow.duration)}",
                  style=pal.muted)
         rows.add_row("Flux", t)
     for label, value, style in (("Domaine", pkt.domain, f"bold {pal.accent}"), ("JA3", pkt.ja3, pal.fg),
@@ -169,7 +174,7 @@ def insight(pkt: Packet, flow, src_host, dst_host, alerts: list[Alert], geo, pal
         if host.mac:
             t.append(f"  {host.mac}", style=pal.dim)
         if host.names:
-            t.append("  " + ", ".join(sorted(host.names)[:3]), style=pal.good)
+            t.append("  " + ", ".join(sorted(host.names)[:3]), style=pal.accent)
         rows.add_row(label, t)
     parts = [rows]
     for a in alerts:

@@ -80,7 +80,9 @@ class Palette:
         self.accent = "#38BDF8" if dark else "#0369A1"
         self.client = "#FF9F5A" if dark else "#C2410C"
         self.server = "#7DD3FC" if dark else "#0369A1"
-        self.good = "#34D399" if dark else "#047857"
+        self.good = "#34D399" if dark else "#047857"      # succès uniquement
+        self.strong = "#C2410C" if dark else "#9A3412"
+        self.soft = "#FFB37A" if dark else "#FB923C"
         self.bg = "#0A0C0F" if dark else "#FFFFFF"
 
     def proto_color(self, proto: str) -> str:
@@ -153,18 +155,26 @@ def bar(fraction: float, width: int, color: str, track: str) -> Text:
     return text
 
 
-def area_chart(values, width: int, height: int, color: str) -> list[Text]:
-    """Histogramme multi-lignes (8 niveaux par ligne)."""
-    width = max(1, width)
-    data = list(values)[-width:]
-    data = [0] * (width - len(data)) + data
-    top = max(data) or 1
-    levels = [v / top * height * 8 for v in data]
+def pill_chart(values, width: int, height: int, pal: Palette, labels: list[str]) -> list[Text]:
+    """Histogramme « en bande » : un pilier par période.
+
+    Période en cours en orange clair, pic en orange foncé, autres périodes hachurées.
+    """
+    buckets = len(labels)
+    size = max(1, len(values) // buckets)
+    means = [sum(values[i * size:(i + 1) * size]) / size for i in range(buckets)]
+    top = max(means) or 1
+    peak = means.index(max(means))
+    col = max(1, (width - (buckets - 1)) // buckets)
+    levels = [max(1, round(v / top * height)) for v in means]
+    looks = [("█", pal.soft) if i == buckets - 1 else ("█", pal.strong) if i == peak and means[i] else ("╱", pal.dim)
+             for i in range(buckets)]
     rows = []
-    for row in range(height - 1, -1, -1):
-        chars = []
-        for level in levels:
-            fill = level - row * 8
-            chars.append("█" if fill >= 8 else (" " if fill <= 0 else SPARK[max(1, int(fill))]))
-        rows.append(Text("".join(chars), style=color))
+    for row in range(height, 0, -1):
+        line = Text()
+        for i, (char, color) in enumerate(looks):
+            line.append((char if levels[i] >= row else " ") * col, style=color)
+            line.append(" ")
+        rows.append(line)
+    rows.append(Text(" ".join(label[:col].center(col) for label in labels), style=pal.muted))
     return rows

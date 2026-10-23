@@ -10,10 +10,10 @@ Analyseur réseau temps réel avec un **cœur de décodage en Rust**, une interf
 | Débit d'analyse mesuré | ~3 900 paquets/s | **~125 000 paquets/s** (décodage seul : ~985 000) |
 | Mémoire par paquet | objet Scapy complet | octets bruts + résumé ; Scapy seulement à l'ouverture du détail |
 | TLS | SNI, JA3 | SNI, ALPN, **JA3, JA3S, JA4**, ClientHello fragmentés réassemblés |
-| Déchiffrement | — | **TLS 1.2 et 1.3** (AES-GCM, ChaCha20-Poly1305) via SSLKEYLOGFILE |
+| Déchiffrement | - | **TLS 1.2 et 1.3** (AES-GCM, ChaCha20-Poly1305) via SSLKEYLOGFILE |
 | Interfaces | TUI | TUI + **API REST + SSE + tableau de bord web** + **mode capteur** NDJSON |
 | Formats | pcap via Scapy | lecteur **pcap/pcapng** natif, écriture pcap, types de lien Ethernet, VLAN, SLL/SLL2, loopback, IP brut |
-| Industrialisation | — | CI Linux/Windows/macOS, wheels précompilés, image Docker, unité systemd |
+| Industrialisation | - | CI Linux/Windows/macOS, wheels précompilés, image Docker, unité systemd |
 
 Les débits ont été mesurés sur un trafic mixte TLS/DNS, sur un seul cœur.
 
@@ -158,7 +158,7 @@ Sécurité : l'API écoute sur `127.0.0.1` par défaut. Le jeton est comparé en
 | `o` | Ouvrir un pcap | `e` | Exporter |
 | `f` | Suivre le flux (déchiffré si possible) | `g` | Filtrer la conversation |
 | `p` | Figer l'affichage | `c` | Effacer la session |
-| `1`–`5` | Onglets | `t` | Thème sombre / clair |
+| `1`-`5` | Onglets | `t` | Thème sombre / clair |
 | `Entrée` | Pivot vers les paquets | `?` | Aide |
 
 ## Filtre d'affichage

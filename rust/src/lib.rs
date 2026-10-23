@@ -1,4 +1,4 @@
-//! PacketPhantom — cœur de décodage réseau, exposé à Python sous `packetphantom._core`.
+//! PacketPhantom - cœur de décodage réseau, exposé à Python sous `packetphantom._core`.
 
 mod app;
 mod decode;

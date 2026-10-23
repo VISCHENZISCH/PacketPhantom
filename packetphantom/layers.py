@@ -1,4 +1,4 @@
-"""Vue détaillée des couches d'un paquet (Scapy, à la demande) — partagée TUI / API."""
+"""Vue détaillée des couches d'un paquet (Scapy, à la demande) - partagée TUI / API."""
 from __future__ import annotations
 
 from typing import NamedTuple

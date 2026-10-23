@@ -33,8 +33,16 @@ def list_interfaces() -> list[str]:
 
 
 def default_interface() -> str:
+    """Interface de la route par défaut (Scapy n'initialise les routes qu'à l'import de scapy.route)."""
+    import scapy.arch  # noqa: F401
+    import scapy.route  # noqa: F401
     from scapy.config import conf
-    return str(conf.iface)
+    from scapy.interfaces import network_name
+    try:
+        iface = conf.route.route("0.0.0.0")[0]
+    except Exception:
+        iface = conf.iface
+    return network_name(iface) if iface else "lo"
 
 
 class Source:
@@ -97,6 +105,8 @@ class LiveSource(Source):
             self._socket = conf.L2listen(iface=self.iface, filter=self.bpf or None)
         except PermissionError as exc:
             raise CaptureError("Permission refusée : lancez avec sudo ou donnez CAP_NET_RAW à Python (voir README)") from exc
+        except ValueError as exc:   # interface inconnue
+            raise CaptureError(f"Interface introuvable : {self.iface} (voir --list-interfaces)") from exc
         except OSError as exc:
             raise CaptureError(f"Impossible d'ouvrir {self.iface} : {exc}") from exc
 

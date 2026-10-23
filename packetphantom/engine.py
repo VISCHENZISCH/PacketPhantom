@@ -241,7 +241,7 @@ class Engine:
         conv = Conversation(flow, reassemble(flow, packets))
         if flow.app == "TLS" or any(p.proto == "TLS" for p in packets[:8]):
             if self.keylog is None:
-                conv.note = "TLS chiffré — fournissez --tls-keylog pour déchiffrer"
+                conv.note = "TLS chiffré - fournissez --tls-keylog pour déchiffrer"
             else:
                 conv.plaintext, conv.note = decrypt_conversation(conv.chunks, self.keylog)
         return conv
