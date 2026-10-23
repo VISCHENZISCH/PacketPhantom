@@ -130,3 +130,5 @@ La documentation de l'API REST est accessible depuis le tableau de bord, menu **
 ## Licence
 
 MIT. N'analysez que des réseaux dont vous êtes propriétaire ou pour lesquels vous avez une autorisation explicite.
+
+Drapeaux : [flag-icons](https://github.com/lipis/flag-icons) (MIT, voir `packetphantom/web/flags/LICENSE`). Contours des continents : [Natural Earth](https://www.naturalearthdata.com) (domaine public).

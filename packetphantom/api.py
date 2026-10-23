@@ -24,6 +24,7 @@ from .geoip import GeoResolver
 from .layers import hexdump, layer_tree
 from .rules import RULES, RulesError
 
+FLAG = re.compile(r"^/flags/([a-z]{2})\.svg$")   # drapeaux (flag-icons, MIT), servis comme les fichiers statiques
 MAX_BODY = 65_536
 MAX_ACK = 10_000
 STATIC = {
@@ -274,6 +275,8 @@ class _Handler(BaseHTTPRequestHandler):
         if method == "GET" and url.path in STATIC:
             name, content_type = STATIC[url.path]
             return self._send(200, (resources.files(__package__) / "web" / name).read_bytes(), content_type)
+        if method == "GET" and (flag := FLAG.match(url.path)):
+            return self._flag(flag.group(1))
         if not self._authorized(query):
             return self._json(401, {"error": "Jeton d'API manquant ou invalide"})
         for route_method, pattern, handler in ROUTES:
@@ -294,6 +297,13 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200, result.body, result.content_type,
                               {"Content-Disposition": f'attachment; filename="{result.filename}"'})
         self._json(200, result)
+
+    def _flag(self, code: str) -> None:
+        # Le nom est contraint à deux lettres minuscules par l'expression : aucun chemin arbitraire.
+        path = resources.files(__package__) / "web" / "flags" / f"{code}.svg"
+        if not path.is_file():
+            return self._json(404, {"error": "Drapeau inconnu"})
+        self._send(200, path.read_bytes(), "image/svg+xml", {"Cache-Control": "public, max-age=86400"})
 
     def _authorized(self, query: dict[str, str]) -> bool:
         header = self.headers.get("Authorization", "")

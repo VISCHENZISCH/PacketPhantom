@@ -92,6 +92,11 @@ def test_api_and_static_files(frames):
         assert land.headers["Content-Type"] == "application/json" and len(dots) > 1000 and len(dots) % 2 == 0
         assert all(-90 <= lat <= 90 and -180 <= lon <= 180 for lat, lon in zip(dots[::2], dots[1::2], strict=True))
         assert "class Globe" in requests.get(base + "/globe.js", timeout=5).text
+
+        flag = requests.get(base + "/flags/fr.svg", timeout=5)
+        assert flag.status_code == 200 and flag.headers["Content-Type"] == "image/svg+xml" and b"<svg" in flag.content
+        assert requests.get(base + "/flags/zz.svg", timeout=5).status_code == 404
+        assert requests.get(base + "/flags/FR.svg", timeout=5).status_code == 401   # hors motif : route protégée
     finally:
         server.stop()
         engine.close()

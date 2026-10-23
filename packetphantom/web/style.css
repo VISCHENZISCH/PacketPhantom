@@ -34,6 +34,9 @@
   --low-tint: #e8f0fb;
   --client: #ea580c;
   --server: #3b7dd8;
+  /* Protocoles : 12 teintes distinctes */
+  --p0: #ea580c; --p1: #2563eb; --p2: #16a34a; --p3: #9333ea; --p4: #db2777; --p5: #0891b2;
+  --p6: #b45309; --p7: #dc2626; --p8: #4f46e5; --p9: #0d9488; --p10: #4d7c0f; --p11: #78716c;
   --dark-card: radial-gradient(circle at 85% 110%, #f97316 0%, #9a3412 40%, #1a0b04 100%);
   --hero: radial-gradient(circle at 0% 100%, rgba(253, 186, 116, 0.55), transparent 60%), linear-gradient(135deg, #ea580c 0%, #9a3412 100%);
   --hero-text: #ffe4cc;
@@ -83,6 +86,8 @@
   --low-tint: #132539;
   --client: #ff9f5a;
   --server: #7dd3fc;
+  --p0: #fb923c; --p1: #60a5fa; --p2: #4ade80; --p3: #c084fc; --p4: #f472b6; --p5: #22d3ee;
+  --p6: #fbbf24; --p7: #f87171; --p8: #818cf8; --p9: #2dd4bf; --p10: #a3e635; --p11: #a8a29e;
   --logo-from: #ffb37a;
   --overlay: rgba(0, 0, 0, 0.6);
   --pop-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
@@ -92,7 +97,8 @@
   color-scheme: dark;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; }
 [hidden] { display: none !important; }
 .svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 
@@ -147,8 +153,6 @@ i[data-icon] { display: inline-flex; }
   padding: 28px 24px 24px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--hatch) transparent;
   border-radius: var(--radius-panel);
   background: var(--panel);
 }
@@ -183,7 +187,7 @@ i[data-icon] { display: inline-flex; }
 .logo-stop-a { stop-color: var(--logo-from); }
 .logo-stop-b { stop-color: var(--primary-strong); }
 
-.nav { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; scrollbar-width: none; }
+.nav { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
 .nav-title { margin: 18px 24px 10px; color: var(--muted); font-size: 12px; font-weight: 500; letter-spacing: 0.06em; }
 
 .nav-item {
@@ -613,7 +617,6 @@ kbd {
 .globe-stats div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 6px 0; }
 .globe-stats div + div { border-top: 1px solid var(--line); }
 .globe-stats strong { font-size: 20px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.country-code { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; }
 .swatch.dir-out { background: var(--primary); }
 .swatch.dir-in { background: var(--low); }
 .swatch.dir-transit { background: var(--med); }
@@ -645,7 +648,17 @@ tbody tr:hover td { background: var(--hover); }
 tbody tr.inert { cursor: default; }
 tbody tr.acked td { color: var(--muted); }
 tbody tr.acked b { font-weight: 500; }
-.proto { padding: 2px 8px; border-radius: 7px; background: var(--primary-tint); color: var(--primary); font-size: 11.5px; font-weight: 700; }
+.proto { --pc: var(--primary); padding: 2px 8px; border-radius: 7px; background: color-mix(in srgb, var(--pc) 14%, var(--surface)); color: var(--pc); font-size: 11.5px; font-weight: 700; }
+.pc-0 { --pc: var(--p0); } .pc-1 { --pc: var(--p1); } .pc-2 { --pc: var(--p2); } .pc-3 { --pc: var(--p3); }
+.pc-4 { --pc: var(--p4); } .pc-5 { --pc: var(--p5); } .pc-6 { --pc: var(--p6); } .pc-7 { --pc: var(--p7); }
+.pc-8 { --pc: var(--p8); } .pc-9 { --pc: var(--p9); } .pc-10 { --pc: var(--p10); } .pc-11 { --pc: var(--p11); }
+
+/* Drapeaux (flag-icons, format 4:3) */
+.flag { width: 20px; height: 15px; flex: none; border-radius: 3px; object-fit: cover; box-shadow: 0 0 0 1px var(--line); vertical-align: -2px; }
+.geo { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.flag-tile { background: var(--surface-2); }
+.flag-tile .flag { width: 24px; height: 18px; }
+.donut-legend .name .flag { margin-right: 6px; }
 .mark { display: inline-block; width: 6px; height: 18px; border-radius: 3px; vertical-align: middle; }
 .mark.sev-4 { background: var(--crit); } .mark.sev-3 { background: var(--high); }
 .mark.sev-2 { background: var(--med); } .mark.sev-1 { background: var(--low); }
@@ -678,6 +691,8 @@ tbody tr.acked b { font-weight: 500; }
 .series-3 { --series: var(--med); }
 .series-4 { --series: var(--low); }
 circle[class^="series-"] { stroke: var(--series); }
+circle[class^="pc-"] { stroke: var(--pc); }
+.swatch[class*="pc-"] { background: var(--pc); }
 .swatch[class*="series-"] { background: var(--series); }
 circle.series-rest { stroke: url(#hatch); }
 .swatch.series-rest { background: repeating-linear-gradient(-45deg, var(--hatch) 0 2px, var(--hatch-bg) 2px 5px); }

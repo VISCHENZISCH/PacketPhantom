@@ -67,6 +67,25 @@ const fmt = {
 const SEVERITY = { 4: "Critique", 3: "Élevée", 2: "Moyenne", 1: "Faible", 0: "Info" };
 const severityPill = (sev) => h("span", { class: `status sev-${sev}` }, SEVERITY[sev] ?? "");
 
+/* Drapeau SVG d'un code pays ISO (flags/xx.svg) ; rien pour LAN, ?? ou un code sans drapeau. */
+function flag(code) {
+  if (!/^[A-Z]{2}$/.test(code ?? "")) return null;
+  return h("img", { class: "flag", src: `flags/${code.toLowerCase()}.svg`, alt: "", loading: "lazy",
+    onerror: (event) => event.target.remove() });
+}
+
+/* Couleur propre à chaque protocole (12 teintes, jetons --p0 à --p11) : fixe pour les plus courants,
+   dérivée du nom pour les autres, identique partout (tableaux, anneau de l'analyse). */
+const PROTO_HUES = {
+  TLS: 0, HTTPS: 0, DNS: 1, HTTP: 2, SSH: 3, ARP: 4, MDNS: 5, LLMNR: 5, NBNS: 5, SSDP: 5, ICMP: 6, ICMPV6: 6, IGMP: 6,
+  SNMP: 6, TELNET: 7, FTP: 7, QUIC: 8, SMB: 8, UDP: 9, NTP: 9, DHCP: 10, DHCPV6: 10, TCP: 11,
+};
+const protoClass = (name = "") => {
+  const key = name.toUpperCase();
+  const hue = PROTO_HUES[key] ?? [...key].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) % 12, 7);
+  return `pc-${hue}`;
+};
+
 // ================================================================== icônes (24×24, trait)
 
 const ICONS = {
@@ -327,7 +346,7 @@ function donut(items, total, centerLabel) {
   const circumference = 2 * Math.PI * radius;
   const shown = items.slice(0, 5);
   const rest = Math.max(0, total - sum(shown.map((x) => x.value)));
-  const series = [...shown.map((x, i) => ({ ...x, cls: `series-${i}` })),
+  const series = [...shown.map((x, i) => ({ ...x, cls: x.cls ?? `series-${i}` })),
     ...(rest > 0 ? [{ label: "Autres", value: rest, cls: "series-rest" }] : [])];
   let offset = 0;
   const ring = svg("svg", { viewBox: "0 0 150 150" },
@@ -344,7 +363,7 @@ function donut(items, total, centerLabel) {
   return h("div", { class: "donut-wrap" },
     h("div", { class: "donut" }, ring, h("div", { class: "donut-center" }, h("strong", {}, fmt.count(total)), h("span", {}, centerLabel))),
     h("ul", { class: "donut-legend" }, series.map((s) =>
-      h("li", {}, h("span", { class: `swatch ${s.cls}` }), h("span", { class: "name", title: s.label }, s.label),
+      h("li", {}, h("span", { class: `swatch ${s.cls}` }), h("span", { class: "name", title: s.label }, s.lead ?? null, s.label),
         h("span", { class: "muted" }, fmt.percent(s.value, total))))));
 }
 
@@ -485,8 +504,10 @@ async function refreshDashboard() {
 
 // ================================================================== vues en liste
 
-const protoCell = (proto) => h("span", { class: "proto" }, proto);
-const geoText = (geo) => (geo ? `${geo.country}${geo.city ? ` · ${geo.city}` : ""}` : "");
+const protoCell = (proto) => h("span", { class: `proto ${protoClass(proto)}` }, proto);
+const geoCell = (geo) => (geo
+  ? h("span", { class: "geo" }, flag(geo.country), window.Globe.placeLabel(geo))
+  : "");
 const sorter = (kind) => ({ value: state.sort[kind], set: (key) => { state.sort[kind] = key; refresh(); } });
 const STATE_OK = new Set(["ESTABLISHED", "CLOSED"]);
 
@@ -544,7 +565,7 @@ const COLUMNS = {
     { label: "Proto", cell: (f) => protoCell(f.app || f.l4) },
     { label: "Client", cell: (f) => fmt.endpoint(f.client, f.client_port), cls: "mono" },
     { label: "Serveur", cell: (f) => fmt.endpoint(f.server, f.server_port), cls: "mono" },
-    { label: "Pays", cell: (f) => geoText(f.geo) },
+    { label: "Pays", cell: (f) => geoCell(f.geo) },
     { label: "Paquets", cell: (f) => fmt.count(f.packets), cls: "num", sort: "packets" },
     { label: "Octets", cell: (f) => fmt.bytes(f.bytes), cls: "num", sort: "bytes" },
     { label: "Durée", cell: (f) => fmt.duration(f.duration), cls: "num", sort: "duration" },
@@ -556,7 +577,7 @@ const COLUMNS = {
     { label: "Adresse", cell: (x) => h("b", {}, x.ip), cls: "mono" },
     { label: "MAC", cell: (x) => x.mac || "-", cls: "mono" },
     { label: "Système", cell: (x) => (x.os ? `${x.os} ${x.os_confidence}%` : "-") },
-    { label: "Localisation", cell: (x) => (x.local ? "LAN" : geoText(x.geo)) },
+    { label: "Localisation", cell: (x) => (x.local ? "LAN" : geoCell(x.geo)) },
     { label: "Noms", cell: (x) => x.names.slice(0, 2).join(", ") },
     { label: "Émis", cell: (x) => fmt.bytes(x.bytes_tx), cls: "num" },
     { label: "Reçus", cell: (x) => fmt.bytes(x.bytes_rx), cls: "num", sort: "bytes" },
@@ -610,12 +631,12 @@ const VIEWS = {
     load: () => api("/api/analytics", { limit: 10 }),
     render: (d) => h("div", { class: "rank-grid" },
       h("section", { class: "card" }, h("h3", {}, "Protocoles"),
-        donut(d.protocols.map((p) => ({ label: p.name, value: p.count })), state.status?.packets ?? sum(d.protocols.map((p) => p.count)), "paquets")),
+        donut(d.protocols.map((p) => ({ label: p.name, value: p.count, cls: protoClass(p.name) })), state.status?.packets ?? sum(d.protocols.map((p) => p.count)), "paquets")),
       h("section", { class: "card" }, h("h3", {}, "Chiffrement"),
         donut([{ label: "Chiffré", value: d.encryption.encrypted }, { label: "En clair", value: d.encryption.cleartext }],
           d.encryption.encrypted + d.encryption.cleartext + d.encryption.other, "paquets")),
       h("section", { class: "card" }, h("h3", {}, "Pays"),
-        donut(d.countries.map((c) => ({ label: `${c.code} ${c.name}`, value: c.bytes })), sum(d.countries.map((c) => c.bytes)), "octets")),
+        donut(d.countries.map((c) => ({ lead: flag(c.code), label: c.name || c.code, value: c.bytes })), sum(d.countries.map((c) => c.bytes)), "octets")),
       h("section", { class: "card" }, h("h3", {}, "Hôtes les plus actifs"),
         bands(d.talkers.map((t) => ({ label: t.name ? `${t.ip}  ${t.name}` : t.ip, value: t.bytes, shown: fmt.bytes(t.bytes) })))),
       h("section", { class: "card" }, h("h3", {}, "Domaines"),
@@ -898,7 +919,7 @@ function renderGlobeSide() {
   const top = ranked[0]?.bytes || 1;
   $("#globe-places").replaceChildren(...(ranked.length
     ? ranked.slice(0, 8).map((e) => row({
-      lead: h("span", { class: "tile hue-0 country-code" }, e.point.country),
+      lead: h("span", { class: "tile flag-tile" }, flag(e.point.country) ?? icon("globe")),
       title: window.Globe.placeLabel(e.point),
       trailing: h("span", { class: "row-value" }, fmt.bytes(e.bytes)),
       details: [meter(e.bytes / top), meta(`${fmt.count(e.packets)} paquets`)],
@@ -923,7 +944,8 @@ function showGlobeTip(hover) {
     return;
   }
   const { place } = hover;
-  tip.replaceChildren(h("b", {}, hover.label), h("span", {}, `${fmt.bytes(place.bytes)} · ${fmt.count(place.packets)} paquets`));
+  tip.replaceChildren(h("b", { class: "geo" }, flag(place.point.country), hover.label),
+    h("span", {}, `${fmt.bytes(place.bytes)} · ${fmt.count(place.packets)} paquets`));
   const canvas = $("#globe-canvas");   // le canvas est centré dans la scène où l'info-bulle est placée
   tip.style.left = `${canvas.offsetLeft + hover.x}px`;
   tip.style.top = `${canvas.offsetTop + hover.y}px`;
