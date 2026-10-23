@@ -586,6 +586,39 @@ kbd {
 .timer-btn .icon { width: 18px; height: 18px; }
 .timer-btn:hover { filter: brightness(1.08); }
 
+/* ------------------------------------------------------------------ globe */
+
+.globe-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: var(--gap); align-items: start; }
+.globe-card { display: flex; flex-direction: column; gap: 14px; }
+.globe-stage { position: relative; display: grid; place-items: center; width: 100%; }
+#globe-canvas { display: block; cursor: grab; touch-action: none; }
+.globe-tip {
+  position: absolute;
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--pop-shadow);
+  font-size: 12.5px;
+  white-space: nowrap;
+  transform: translate(-50%, calc(-100% - 14px));
+  pointer-events: none;
+}
+.globe-tip span { color: var(--muted); }
+.globe-hint { margin: 0; }
+.globe-side { display: grid; gap: var(--gap); }
+.globe-stats { display: grid; gap: 4px; padding-block: 14px; }
+.globe-stats div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 6px 0; }
+.globe-stats div + div { border-top: 1px solid var(--line); }
+.globe-stats strong { font-size: 20px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.country-code { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; }
+.swatch.dir-out { background: var(--primary); }
+.swatch.dir-in { background: var(--low); }
+.swatch.dir-transit { background: var(--med); }
+.swatch.dir-home { background: var(--good); }
+
 /* ------------------------------------------------------------------ tableaux */
 
 .table-card { padding: 8px; }
@@ -764,6 +797,7 @@ pre.server { border-left: 4px solid var(--server); }
 /* ------------------------------------------------------------------ adaptatif */
 
 @media (max-width: 1280px) {
+  .globe-grid { grid-template-columns: minmax(0, 1fr); }
   .dash-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas: "k1 k2" "k3 k4" "tr tr" "rm ho" "al al" "ga ti";

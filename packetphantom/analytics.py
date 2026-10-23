@@ -5,7 +5,7 @@ from collections import Counter
 
 from . import __version__
 from .engine import Engine
-from .geoip import GeoResolver
+from .geoip import GeoInfo, GeoResolver
 
 ENCRYPTED = {"TLS", "QUIC", "SSH", "HTTPS", "HTTPS-ALT", "DOT", "IMAPS", "POP3S", "SMTPS", "LDAPS",
              "WIREGUARD", "OPENVPN", "ESP"}
@@ -58,4 +58,66 @@ def rankings(engine: Engine, geo: GeoResolver, limit: int = 10) -> dict:
         "countries": [{"code": code, "name": names[code], "bytes": b} for code, b in countries.most_common(limit)],
         "encryption": {"encrypted": encrypted, "cleartext": cleartext,
                        "other": max(0, st.total - encrypted - cleartext)},
+    }
+
+
+# ---------------------------------------------------------------- globe
+
+GEO_PACKETS = 20_000   # paquets agrégés au plus par appel (au-delà, les plus récents)
+GEO_ARCS = 300         # trajets renvoyés au plus (les plus volumineux)
+
+
+def _point(info: GeoInfo | None) -> dict | None:
+    if info is None:
+        return None
+    return {"lat": info.lat, "lon": info.lon, "country": info.country, "name": info.name, "city": info.city}
+
+
+def _place(geo: GeoResolver, ip: str, home: GeoInfo | None) -> GeoInfo | None:
+    info = geo.lookup(ip)   # non bloquant : None tant que la résolution est en cours
+    if info is None:
+        return None
+    if info.country == "LAN":
+        return home
+    return info if info.located else None
+
+
+def geo_traffic(engine: Engine, geo: GeoResolver, after: int | None) -> dict:
+    """Trajets des paquets d'un lieu à l'autre depuis le paquet `after` (None : à partir de maintenant).
+
+    Chaque trajet agrège les paquets d'un même couple de lieux ; `direction` vaut out (depuis le
+    réseau local), in (vers lui) ou transit.
+    """
+    home = geo.home
+    base = {"home": _point(home), "geo": geo.mode, "note": geo.note}
+    if after is None:
+        return {**base, "last_id": engine.last_packet_id, "arcs": [], "packets": 0, "placed": 0}
+    packets = engine.packets_after(after, GEO_PACKETS)
+    arcs: dict[tuple[GeoInfo, GeoInfo], list] = {}
+    placed = 0
+    for p in packets:
+        a = _place(geo, p.src, home)
+        if a is None:
+            continue
+        b = _place(geo, p.dst, home)
+        if b is None or (a.lat, a.lon) == (b.lat, b.lon):
+            continue
+        placed += 1
+        arc = arcs.get((a, b))
+        if arc is None:
+            arc = arcs[(a, b)] = [0, 0, Counter()]
+        arc[0] += 1
+        arc[1] += p.length
+        arc[2][p.proto] += 1
+    top = sorted(arcs.items(), key=lambda item: item[1][1], reverse=True)[:GEO_ARCS]
+    return {
+        **base,
+        # Identifiant supérieur au dernier paquet : client d'une session précédente, on repart de maintenant.
+        "last_id": packets[-1].id if packets else min(after, engine.last_packet_id),
+        "packets": len(packets),
+        "placed": placed,
+        "arcs": [{
+            "from": _point(a), "to": _point(b), "packets": n, "bytes": size, "proto": protos.most_common(1)[0][0],
+            "direction": "out" if a is home else "in" if b is home else "transit",
+        } for (a, b), (n, size, protos) in top],
     }

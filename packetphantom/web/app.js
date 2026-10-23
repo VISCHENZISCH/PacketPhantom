@@ -96,6 +96,8 @@ const ICONS = {
   mute: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM3 3l18 18",
   trash: "M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6",
   down: "M12 5v14m0 0-6-6m6 6 6-6",
+  globe: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20",
+  spin: "M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5",
 };
 
 function icon(name, solid = false) {
@@ -566,6 +568,7 @@ const COLUMNS = {
 
 const VIEWS = {
   dashboard: { title: "Tableau de bord", load: refreshDashboard },
+  globe: { title: "Globe", load: async () => {} },   // interrogé chaque seconde par pollGlobe
   packets: {
     title: "Paquets",
     subtitle: () => (state.filter ? `Filtre : ${state.filter}` : "Derniers paquets capturés - filtrez depuis la barre de recherche."),
@@ -652,10 +655,14 @@ async function refresh() {
 function showView(name) {
   state.view = name;
   const isDashboard = name === "dashboard";
+  const isGlobe = name === "globe";
   $$(".nav-item[data-view]").forEach((item) => item.classList.toggle("active", item.dataset.view === name));
   $("#page-dashboard").hidden = !isDashboard;
-  $("#page-list").hidden = isDashboard;
-  if (!isDashboard) {
+  $("#page-globe").hidden = !isGlobe;
+  $("#page-list").hidden = isDashboard || isGlobe;
+  if (isGlobe) startGlobe();
+  else stopGlobe();
+  if (!isDashboard && !isGlobe) {
     $("#list-title").textContent = VIEWS[name].title;
     $("#list-subtitle").textContent = VIEWS[name].subtitle();
     $("#view").replaceChildren(h("div", { class: "empty" }, "Chargement…"));
@@ -805,6 +812,131 @@ function openHelp() {
       ]))));
 }
 
+// ================================================================== globe
+
+/* Le serveur agrège les paquets par couple de lieux (GET /api/geo/traffic?after=) ;
+   la page l'interroge chaque seconde et garde 60 s d'historique pour la liste des destinations. */
+const GEO_WINDOW = 60;
+const geo = { globe: null, cursor: null, timer: 0, busy: false, ticks: [], last: null, landLoaded: false };
+
+const geoKey = (p) => `${p.lat.toFixed(2)},${p.lon.toFixed(2)}`;
+
+async function startGlobe() {
+  if (!geo.globe) {
+    geo.globe = new window.Globe($("#globe-canvas"), { onHover: showGlobeTip });
+  }
+  if (!geo.landLoaded) {
+    try {
+      const land = await (await fetch("land.json")).json();
+      geo.globe.setLand(land.dots);
+      geo.landLoaded = true;
+    } catch {
+      /* sans contours, le globe reste utilisable */
+    }
+  }
+  if (state.view !== "globe") return;
+  geo.globe.start();
+  clearInterval(geo.timer);
+  geo.timer = setInterval(pollGlobe, 1000);
+  pollGlobe();
+}
+
+function stopGlobe() {
+  clearInterval(geo.timer);
+  geo.globe?.stop();
+  showGlobeTip(null);
+}
+
+async function pollGlobe() {
+  if (geo.busy || document.hidden) return;
+  geo.busy = true;
+  try {
+    const d = await api("/api/geo/traffic", geo.cursor === null ? {} : { after: geo.cursor });
+    geo.cursor = d.last_id;
+    geo.last = d;
+    geo.globe.setHome(d.home);
+    geo.globe.ingest(d.arcs);
+    const tick = new Map();
+    for (const arc of d.arcs) {
+      for (const end of [arc.from, arc.to]) {
+        if (end.country === "LAN") continue;
+        const entry = tick.get(geoKey(end)) ?? { point: end, bytes: 0, packets: 0 };
+        entry.bytes += arc.bytes;
+        entry.packets += arc.packets;
+        tick.set(geoKey(end), entry);
+      }
+    }
+    geo.ticks.push(tick);
+    if (geo.ticks.length > GEO_WINDOW) geo.ticks.shift();
+    renderGlobeSide();
+    condition("globe", "", "");
+  } catch (error) {
+    condition("globe", "Globe indisponible", error.message);
+  } finally {
+    geo.busy = false;
+  }
+}
+
+function renderGlobeSide() {
+  const d = geo.last;
+  const places = new Map();
+  for (const tick of geo.ticks) {
+    for (const [key, entry] of tick) {
+      const sumEntry = places.get(key) ?? { point: entry.point, bytes: 0, packets: 0 };
+      sumEntry.bytes += entry.bytes;
+      sumEntry.packets += entry.packets;
+      places.set(key, sumEntry);
+    }
+  }
+  const ranked = [...places.values()].sort((a, b) => b.bytes - a.bytes);
+  const lastTick = geo.ticks[geo.ticks.length - 1];
+  const rate = lastTick ? sum([...lastTick.values()].map((e) => e.bytes)) : 0;
+  $("#globe-countries").textContent = fmt.count(new Set(ranked.map((e) => e.point.country)).size);
+  $("#globe-rate").textContent = fmt.bits(rate * 8);
+  $("#globe-placed").textContent = d?.packets ? fmt.percent(d.placed, d.packets) : "-";
+
+  const top = ranked[0]?.bytes || 1;
+  $("#globe-places").replaceChildren(...(ranked.length
+    ? ranked.slice(0, 8).map((e) => row({
+      lead: h("span", { class: "tile hue-0 country-code" }, e.point.country),
+      title: window.Globe.placeLabel(e.point),
+      trailing: h("span", { class: "row-value" }, fmt.bytes(e.bytes)),
+      details: [meter(e.bytes / top), meta(`${fmt.count(e.packets)} paquets`)],
+      onClick: () => geo.globe.focus(e.point),
+    }))
+    : [row({ lead: h("span", { class: "tile hue-4" }, icon("globe")), title: "Aucun trafic géolocalisé",
+      details: meta("Les destinations apparaissent dès que des paquets sont localisés.") })]));
+
+  const hint = $("#globe-hint");
+  const message = !d ? ""
+    : d.geo === "off" && !d.placed ? "Géolocalisation désactivée : relancez sans --geo off pour placer les adresses publiques."
+      : !d.home ? "Position de votre réseau inconnue : ajoutez --home LAT,LON (ex. --home 48.85,2.35) pour tracer les échanges avec le réseau local."
+        : d.packets && !d.placed ? "Localisation des adresses en cours…" : "";
+  hint.hidden = !message;
+  hint.textContent = message;
+}
+
+function showGlobeTip(hover) {
+  const tip = $("#globe-tip");
+  if (!hover) {
+    tip.hidden = true;
+    return;
+  }
+  const { place } = hover;
+  tip.replaceChildren(h("b", {}, hover.label), h("span", {}, `${fmt.bytes(place.bytes)} · ${fmt.count(place.packets)} paquets`));
+  const canvas = $("#globe-canvas");   // le canvas est centré dans la scène où l'info-bulle est placée
+  tip.style.left = `${canvas.offsetLeft + hover.x}px`;
+  tip.style.top = `${canvas.offsetTop + hover.y}px`;
+  tip.hidden = false;
+}
+
+function toggleGlobeSpin() {
+  if (!geo.globe) return;
+  geo.globe.spin = !geo.globe.spin;
+  $$(".spin-icon").forEach((el) => setIcon(el, geo.globe.spin ? "pause" : "spin"));
+  $$(".spin-label").forEach((el) => { el.textContent = geo.globe.spin ? "Arrêter la rotation" : "Reprendre la rotation"; });
+}
+
 // ================================================================== actions
 
 async function toggleCapture() {
@@ -835,7 +967,9 @@ function toggleFreeze() {
 const ACTIONS = {
   capture: toggleCapture,
   export: () => location.assign(apiUrl("/api/export.pcap", { token, filter: state.view === "packets" ? state.filter : "" })),
-  theme: () => { window.ppTheme.toggle(); renderThemeControls(); },
+  theme: () => { window.ppTheme.toggle(); renderThemeControls(); geo.globe?.readColors(); },
+  "globe-spin": toggleGlobeSpin,
+  "globe-clear": () => { geo.globe?.clear(); geo.ticks = []; renderGlobeSide(); },
   help: openHelp,
   notifications: openNotifications,
   freeze: toggleFreeze,

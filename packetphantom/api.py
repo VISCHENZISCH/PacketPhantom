@@ -32,6 +32,8 @@ STATIC = {
     "/style.css": ("style.css", "text/css; charset=utf-8"),
     "/theme.js": ("theme.js", "text/javascript; charset=utf-8"),
     "/logo.svg": ("logo.svg", "image/svg+xml"),
+    "/globe.js": ("globe.js", "text/javascript; charset=utf-8"),
+    "/land.json": ("land.json", "application/json"),
 }
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -114,6 +116,12 @@ def status(api: Api, req: Request) -> dict:
 @route("GET", "/api/analytics")
 def rankings(api: Api, req: Request) -> dict:
     return analytics.rankings(api.engine, api.geo, req.int("limit", 10, 100))
+
+
+@route("GET", "/api/geo/traffic")
+def geo_traffic(api: Api, req: Request) -> dict:
+    after = req.int("after", -1)
+    return analytics.geo_traffic(api.engine, api.geo, after if after >= 0 else None)
 
 
 @route("GET", "/api/interfaces")

@@ -17,6 +17,16 @@ def _endpoint(value: str) -> tuple[str, int]:
         raise argparse.ArgumentTypeError("format attendu : [HÔTE:]PORT") from exc
 
 
+def _home(value: str) -> tuple[float, float]:
+    try:
+        lat, lon = (float(part) for part in value.split(","))
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("format attendu : LAT,LON (ex. 48.85,2.35)") from exc
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise argparse.ArgumentTypeError("latitude entre -90 et 90, longitude entre -180 et 180")
+    return lat, lon
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="packetphantom",
@@ -36,6 +46,8 @@ def build_parser() -> argparse.ArgumentParser:
     analysis.add_argument("--geo", choices=["auto", "offline", "online", "off"], default="auto",
                           help="géolocalisation : base GeoLite2 locale, API ip-api.com, ou désactivée")
     analysis.add_argument("--geoip-db", metavar="CHEMIN", help="chemin vers GeoLite2-City.mmdb")
+    analysis.add_argument("--home", metavar="LAT,LON", type=_home,
+                          help="position du réseau local sur le globe (défaut : déduite en mode --geo online)")
     analysis.add_argument("--buffer", type=int, default=100_000, help="paquets conservés en mémoire (défaut : 100000)")
     analysis.add_argument("--rules", metavar="FICHIER", default=os.environ.get("PACKETPHANTOM_RULES"),
                           help="règles de détection TOML : seuils, règles désactivées, liste blanche "
@@ -95,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
     except StoreError as exc:
         print(f"packetphantom : {exc}", file=sys.stderr)
         return 1
-    geo = GeoResolver(args.geo, args.geoip_db)
+    geo = GeoResolver(args.geo, args.geoip_db, home=args.home)
     api = None
     try:
         if args.api:

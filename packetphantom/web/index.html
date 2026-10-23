@@ -39,6 +39,7 @@
       <nav class="nav" aria-label="Navigation">
         <p class="nav-title">MENU</p>
         <button class="nav-item active" type="button" data-view="dashboard"><i data-icon="grid"></i>Tableau de bord</button>
+        <button class="nav-item" type="button" data-view="globe"><i data-icon="globe"></i>Globe</button>
         <button class="nav-item" type="button" data-view="packets"><i data-icon="list"></i>Paquets</button>
         <button class="nav-item" type="button" data-view="flows"><i data-icon="flow"></i>Flux</button>
         <button class="nav-item" type="button" data-view="hosts"><i data-icon="server"></i>Hôtes</button>
@@ -166,6 +167,45 @@
       </section>
 
       <!-- ------------------------------------------------------ vues en liste -->
+      <section id="page-globe" class="page" hidden>
+        <div class="page-head">
+          <div>
+            <h1>Globe</h1>
+            <p>Paquets en vol entre votre réseau et le reste du monde, en temps réel.</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-outline" type="button" data-action="globe-spin"><i data-icon="pause" class="spin-icon"></i><span class="spin-label">Arrêter la rotation</span></button>
+            <button class="btn btn-ghost" type="button" data-action="globe-clear"><i data-icon="trash"></i>Effacer</button>
+          </div>
+        </div>
+        <div class="globe-grid">
+          <article class="card globe-card">
+            <div class="globe-stage">
+              <canvas id="globe-canvas" role="img" aria-label="Globe du trafic réseau en temps réel"></canvas>
+              <div id="globe-tip" class="globe-tip" hidden></div>
+            </div>
+            <p id="globe-hint" class="note globe-hint" hidden></p>
+            <ul class="legend">
+              <li><span class="swatch dir-out"></span>Sortant</li>
+              <li><span class="swatch dir-in"></span>Entrant</li>
+              <li><span class="swatch dir-transit"></span>Transit</li>
+              <li><span class="swatch dir-home"></span>Votre réseau</li>
+            </ul>
+          </article>
+          <div class="globe-side">
+            <article class="card globe-stats">
+              <div><span class="muted">Pays actifs</span><strong id="globe-countries">-</strong></div>
+              <div><span class="muted">Débit géolocalisé</span><strong id="globe-rate">-</strong></div>
+              <div><span class="muted">Paquets placés</span><strong id="globe-placed">-</strong></div>
+            </article>
+            <article class="card list-card">
+              <header class="card-head"><h3>Destinations</h3><span class="muted">60 dernières secondes</span></header>
+              <ul id="globe-places" class="item-list"></ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
       <section id="page-list" class="page" hidden>
         <div class="page-head">
           <div>
@@ -212,6 +252,7 @@
   </dialog>
 
   <div id="toasts" class="notify-stack" aria-live="polite"></div>
+  <script src="globe.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

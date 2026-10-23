@@ -6,6 +6,7 @@ Analyseur réseau temps réel : il capture le trafic, reconstruit les conversati
 - Lecture de fichiers `.pcap` / `.pcapng`, export PCAP
 - Déchiffrement TLS 1.2 et 1.3 avec un fichier `SSLKEYLOGFILE`
 - Inventaire des hôtes, empreintes TLS JA3 / JA4
+- Globe 3D : les paquets voyagent de pays en pays en temps réel
 - Mode capteur sans interface, avec API REST
 
 ## Prérequis
@@ -70,8 +71,17 @@ Dans le terminal, appuyez sur `?` pour afficher l'aide, `s` pour démarrer ou ar
 | `--tls-keylog FICHIER` | déchiffrer TLS (voir plus bas) |
 | `--rules FICHIER` | régler la détection (voir plus bas) |
 | `--db FICHIER` | conserver les alertes entre deux lancements |
+| `--home LAT,LON` | position de votre réseau sur le globe, ex. `--home 48.85,2.35` |
 
 Exemples de filtres d'affichage : `ip.addr == 10.0.0.0/8`, `port 443`, `domain contains "google"`, `alert >= high`.
+
+## Globe du trafic
+
+Dans le tableau de bord, la page **Globe** (menu de gauche) montre les paquets en vol entre votre réseau et le reste du monde : orange pour le trafic sortant, bleu pour l'entrant. Cliquez-glissez pour faire tourner le globe, survolez un point pour voir le pays et le volume.
+
+Le globe a besoin de la géolocalisation (activée par défaut) et de la position de votre réseau :
+- avec `--geo online` (par défaut sans base GeoLite2), elle est déduite automatiquement ;
+- sinon, indiquez-la avec `--home LAT,LON`.
 
 ## Déchiffrer TLS
 
