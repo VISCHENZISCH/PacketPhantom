@@ -25,6 +25,13 @@ Kpi {
     border: round $foreground 12%;
 }
 
+/* Indicateur principal : fond orange, marge intérieure réduite */
+Kpi.hero {
+    padding: 0;
+    background: $primary;
+    border: round $primary;
+}
+
 Kpi:last-of-type {
     margin-right: 0;
 }
