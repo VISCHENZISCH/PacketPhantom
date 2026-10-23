@@ -14,7 +14,6 @@ Screen {
 #kpis {
     height: 5;
     padding: 0 1;
-    margin-top: 1;
 }
 
 Kpi {
@@ -87,8 +86,9 @@ DataTable > .datatable--header-hover {
 
 /* ---------------------------------------------------------- détail paquet */
 
+/* Hauteur réduite au profit de la liste des paquets au-dessus. */
 #detail {
-    height: 17;
+    height: 12;
     border-top: tall $primary 35%;
     background: $surface;
 }
@@ -116,7 +116,7 @@ DataTable > .datatable--header-hover {
 
 #pkt-insight {
     height: auto;
-    max-height: 9;
+    max-height: 6;
     padding: 0 1;
     background: $panel;
 }

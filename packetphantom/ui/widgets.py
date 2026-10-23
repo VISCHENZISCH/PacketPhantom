@@ -26,7 +26,7 @@ BADGES = {
 
 
 class StatusBar(Static):
-    """Barre supérieure : marque, état de capture, source, filtres, API, horloge."""
+    """Barre supérieure : état de capture, source, filtres, API, horloge."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -41,8 +41,6 @@ class StatusBar(Static):
         s = self.state
         tone = {"live": pal.good, "file": pal.accent, "done": pal.muted}.get(s["mode"], pal.sev[2])
         left = Text()
-        left.append(" PACKET", style=f"bold {pal.primary}")
-        left.append("PHANTOM  ", style=f"bold {pal.fg}")
         left.append(BADGES.get(s["mode"], BADGES["idle"]), style=f"bold {pal.bg} on {tone}")
         if s.get("source"):
             left.append("  source ", style=pal.muted)
