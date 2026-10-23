@@ -10,7 +10,7 @@ from textual.widgets import Static, Tree
 
 from ..layers import hexdump, layer_tree
 from ..model import Alert, Packet
-from .theme import Palette, bar, fmt_bytes, fmt_duration, sparkline
+from .theme import SEV_NAMES, Palette, bar, fmt_bytes, fmt_duration, sparkline
 
 
 def palette_of(widget) -> Palette:
@@ -18,9 +18,10 @@ def palette_of(widget) -> Palette:
     return Palette(theme.dark if theme is not None else True)
 
 
+# Le fond coloré du badge porte l'état ; le texte seul suffit.
 BADGES = {
-    "live": " ● CAPTURE ", "file": " ▶ LECTURE ", "done": " ✓ TERMINÉ ",
-    "idle": " ■ ARRÊTÉ ", "paused": " ❚❚ AFFICHAGE FIGÉ ",
+    "live": " CAPTURE ", "file": " LECTURE ", "done": " TERMINÉ ",
+    "idle": " ARRÊTÉ ", "paused": " AFFICHAGE FIGÉ ",
 }
 
 
@@ -40,11 +41,11 @@ class StatusBar(Static):
         s = self.state
         tone = {"live": pal.good, "file": pal.accent, "done": pal.muted}.get(s["mode"], pal.sev[2])
         left = Text()
-        left.append(" ◆ PACKET", style=f"bold {pal.primary}")
+        left.append(" PACKET", style=f"bold {pal.primary}")
         left.append("PHANTOM  ", style=f"bold {pal.fg}")
         left.append(BADGES.get(s["mode"], BADGES["idle"]), style=f"bold {pal.bg} on {tone}")
         if s.get("source"):
-            left.append("  ⌁ ", style=pal.muted)
+            left.append("  source ", style=pal.muted)
             left.append(s["source"], style=f"bold {pal.fg}")
         left.append("  BPF ", style=pal.muted)
         left.append(s.get("bpf") or "aucun", style=pal.accent if s.get("bpf") else pal.dim)
@@ -178,7 +179,8 @@ def insight(pkt: Packet, flow, src_host, dst_host, alerts: list[Alert], geo, pal
         rows.add_row(label, t)
     parts = [rows]
     for a in alerts:
-        t = Text("▲ ", style=pal.sev[a.severity])
+        t = Text(f" {SEV_NAMES[a.severity]} ", style=f"bold reverse {pal.sev[a.severity]}")
+        t.append(" ")
         t.append(a.title, style=f"bold {pal.sev[a.severity]}")
         t.append(f"  {a.detail.splitlines()[0] if a.detail else ''}", style=pal.muted)
         parts.append(t)

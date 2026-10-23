@@ -604,7 +604,7 @@ th {
 }
 th.sortable { cursor: pointer; }
 th.sortable:hover, th.sorted { color: var(--primary); }
-th.sorted::after { content: " ↓"; }
+th .sort-icon { width: 13px; height: 13px; margin-left: 4px; vertical-align: -2px; }
 td { max-width: 520px; padding: 10px 12px; border-top: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 td.num { text-align: right; }
 tbody tr { cursor: pointer; }

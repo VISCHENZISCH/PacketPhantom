@@ -95,6 +95,7 @@ const ICONS = {
   check: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM8 12l3 3 5-6",
   mute: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM3 3l18 18",
   trash: "M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6",
+  down: "M12 5v14m0 0-6-6m6 6 6-6",
 };
 
 function icon(name, solid = false) {
@@ -490,10 +491,15 @@ const STATE_OK = new Set(["ESTABLISHED", "CLOSED"]);
 /* columns : [{ label, cell(row) → texte|Node, cls?, sort? }] ; onClick facultatif ; rowClass(row) → classe. */
 function table(columns, rows, onClick, sortState, rowClass = () => "") {
   if (!rows.length) return h("div", { class: "empty" }, "Aucune donnée pour l'instant.");
-  const head = columns.map((col) => h("th", {
-    class: [col.sort && "sortable", col.sort && sortState?.value === col.sort && "sorted"].filter(Boolean).join(" "),
-    onclick: col.sort ? () => sortState.set(col.sort) : undefined,
-  }, col.label));
+  const head = columns.map((col) => {
+    const sorted = col.sort && sortState?.value === col.sort;
+    const arrow = sorted ? icon("down") : null;
+    arrow?.classList.add("sort-icon");
+    return h("th", {
+      class: [col.sort && "sortable", sorted && "sorted"].filter(Boolean).join(" "),
+      onclick: col.sort ? () => sortState.set(col.sort) : undefined,
+    }, col.label, arrow);
+  });
   const body = rows.map((row) => h("tr", { class: [rowClass(row), !onClick && "inert"].filter(Boolean).join(" "),
     onclick: onClick ? () => onClick(row) : undefined },
     columns.map((col) => h("td", { class: col.cls }, col.cell(row) ?? ""))));

@@ -119,7 +119,7 @@ class InterfaceScreen(Dialog):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="dialog"):
-            yield OptionList(*[Option(("● " if i == self.current else "  ") + i, id=i) for i in self.interfaces])
+            yield OptionList(*[Option(i + ("  (actuelle)" if i == self.current else ""), id=i) for i in self.interfaces])
             yield Label("Entrée  sélectionner    Échap  annuler", classes="dialog-hint")
 
     def on_mount(self) -> None:

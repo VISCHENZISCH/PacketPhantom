@@ -293,7 +293,7 @@ class PhantomApp(App):
     def _refresh_header(self, status: dict) -> None:
         warnings = []
         if status["dropped"]:
-            warnings.append(f"⚠ {fmt_count(status['dropped'])} paquets perdus")
+            warnings.append(f"{fmt_count(status['dropped'])} paquets perdus")
         if status["backlog"] > 1000:
             warnings.append(f"file d'analyse : {fmt_count(status['backlog'])}")
         api = f"{self.api.address[0]}:{self.api.address[1]}" if self.api else ""
