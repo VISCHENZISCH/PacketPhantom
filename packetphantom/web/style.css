@@ -412,6 +412,18 @@ kbd {
 }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
 
+/* Cartes de listes (hôtes, alertes, destinations) : coins carrés, en-tête noir sur toute la largeur. */
+.card.list-card { padding-top: 0; overflow: hidden; border-radius: 0; }
+.list-card > .card-head {
+  margin: 0 -22px 14px;
+  padding: 14px 22px;
+  background: #0c0c0d;
+  color: #fff;
+}
+.list-card > .card-head .muted { color: rgba(255, 255, 255, 0.6); }
+.list-card > .card-head .btn-outline { border-color: var(--primary); background: rgba(255, 255, 255, 0.08); color: #fff; }
+.list-card > .card-head .btn-outline:hover { background: rgba(255, 255, 255, 0.16); }
+
 .dash-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -501,8 +513,8 @@ kbd {
 .row-title { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .row-value { flex: none; font-weight: 600; font-variant-numeric: tabular-nums; }
 .row-meta { overflow: hidden; color: var(--muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
-.meter { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
-.meter > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--primary-soft), var(--primary)); }
+.meter { height: 6px; background: var(--surface-2); overflow: hidden; }
+.meter > span { display: block; height: 100%; background: linear-gradient(90deg, var(--primary-soft), var(--primary)); }
 
 .timeline .row { padding-left: 34px; }
 .timeline .row::before {
@@ -594,7 +606,23 @@ kbd {
 
 .globe-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: var(--gap); align-items: start; }
 .globe-card { display: flex; flex-direction: column; gap: 14px; }
-.globe-stage { position: relative; display: grid; place-items: center; width: 100%; }
+.globe-stage { position: relative; isolation: isolate; display: grid; place-items: center; width: 100%; padding: 12px 0; }
+/* Grille de fond, estompée vers les bords ; le globe (opaque) se dessine par-dessus. */
+.globe-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  --grid: color-mix(in srgb, var(--fg) 12%, transparent);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-position: center;
+  background-size: 32px 32px;
+  -webkit-mask-image: radial-gradient(closest-side, #000 65%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 65%, transparent 100%);
+  pointer-events: none;
+}
 #globe-canvas { display: block; cursor: grab; touch-action: none; }
 .globe-tip {
   position: absolute;
