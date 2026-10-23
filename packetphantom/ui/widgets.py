@@ -63,7 +63,7 @@ class StatusBar(Static):
 
 
 class Kpi(Static):
-    """Indicateur : libellé, valeur, tendance (sparkline)."""
+    """Indicateur sur deux lignes : libellé suivi de la tendance (sparkline), puis valeur."""
 
     def __init__(self, label: str, hero: bool = False, **kwargs):
         super().__init__(classes="hero" if hero else "", **kwargs)
@@ -84,11 +84,15 @@ class Kpi(Static):
         else:
             color = {"alert": pal.sev[4], "warn": pal.sev[2], "good": pal.good}.get(self.tone, pal.primary)
             value_color, label_color, sub_color = color if self.tone else pal.fg, pal.muted, pal.muted
-        value = Text(self.value, style=f"bold {value_color}")
+        head = Text(self.label.upper(), style=f"bold {label_color}", no_wrap=True, overflow="ellipsis")
+        room = self.size.width - len(head) - 1
+        if self.history and room >= 4:
+            head.append(" ")
+            head.append_text(sparkline(self.history, room, color))
+        value = Text(self.value, style=f"bold {value_color}", no_wrap=True, overflow="ellipsis")
         if self.sub:
             value.append(f"  {self.sub}", style=sub_color)
-        trend = sparkline(self.history, max(4, self.size.width - 2), color) if self.history else Text("")
-        return Group(Text(self.label.upper(), style=f"bold {label_color}"), value, trend)
+        return Group(head, value)
 
 
 class Panel(Static):
