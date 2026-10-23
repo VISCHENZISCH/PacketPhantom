@@ -414,7 +414,7 @@ kbd {
 
 /* Cartes de listes (hôtes, alertes, destinations) : en-tête noir sur toute la largeur,
    arrondi par la carte (overflow: hidden). */
-.card.list-card { padding-top: 0; overflow: hidden; }
+.card.list-card { padding-top: 0; overflow: hidden; border: 0; }
 .list-card > .card-head {
   margin: 0 -22px 14px;
   padding: 14px 22px;
@@ -653,7 +653,20 @@ kbd {
 
 /* ------------------------------------------------------------------ tableaux */
 
-.table-card { padding: 8px; }
+/* Tableaux (Paquets, Flux, Hôtes, Alertes, Exceptions) : carte sans bordure,
+   ligne des titres de colonnes en en-tête noir, comme les cartes de listes. */
+.table-card { padding: 0; overflow: hidden; border: 0; }
+.table-card th { padding: 15px 12px; background: #0c0c0d; color: rgba(255, 255, 255, 0.72); }
+.table-card th.sortable:hover, .table-card th.sorted { color: var(--primary); }
+.table-card :is(th, td):first-child { padding-left: 22px; }
+.table-card :is(th, td):last-child { padding-right: 22px; }
+.table-card tbody tr:first-child td { border-top: 0; }
+/* Texte un peu plus grand que dans le reste du tableau de bord */
+.table-card table { font-size: 15px; }
+.table-card th { font-size: 13px; }
+.table-card :is(th, td) { padding-inline: 8px; }   /* compense la taille du texte : 11 colonnes tiennent sans défilement */
+.table-card .mono { font-size: 13px; }
+.table-card .proto, .table-card .status { font-size: 12.5px; }
 .table-wrap { min-height: 360px; overflow-x: auto; }
 table { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
 th {
