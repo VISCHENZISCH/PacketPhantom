@@ -79,7 +79,7 @@ def alert(a: Alert) -> dict:
     return {
         "id": a.id, "time": iso(a.ts), "ts": a.ts, "severity": a.severity, "severity_label": a.severity_label,
         "category": a.category, "title": a.title, "detail": a.detail, "src": a.src, "dst": a.dst,
-        "packet": a.packet_id, "flow": a.flow_id,
+        "packet": a.packet_id, "flow": a.flow_id, "rule": a.rule, "acked": a.acked,
     }
 
 

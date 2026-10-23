@@ -22,6 +22,8 @@ class Alert:
     dst: str = ""
     packet_id: int = 0
     flow_id: int = 0
+    rule: str = ""          # identifiant de la règle (rules.RULES)
+    acked: bool = False     # acquittée par un analyste
 
     @property
     def severity_label(self) -> str:

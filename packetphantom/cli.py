@@ -37,6 +37,16 @@ def build_parser() -> argparse.ArgumentParser:
                           help="géolocalisation : base GeoLite2 locale, API ip-api.com, ou désactivée")
     analysis.add_argument("--geoip-db", metavar="CHEMIN", help="chemin vers GeoLite2-City.mmdb")
     analysis.add_argument("--buffer", type=int, default=100_000, help="paquets conservés en mémoire (défaut : 100000)")
+    analysis.add_argument("--rules", metavar="FICHIER", default=os.environ.get("PACKETPHANTOM_RULES"),
+                          help="règles de détection TOML : seuils, règles désactivées, liste blanche "
+                               "(défaut : $PACKETPHANTOM_RULES ; exemple : packaging/rules.example.toml)")
+
+    storage = p.add_argument_group("persistance")
+    storage.add_argument("--db", metavar="FICHIER", default=os.environ.get("PACKETPHANTOM_DB"),
+                         help="base SQLite des alertes, acquittements et exceptions (défaut : $PACKETPHANTOM_DB, "
+                              "sinon tout reste en mémoire)")
+    storage.add_argument("--retention", metavar="JOURS", type=float, default=30.0,
+                         help="durée de conservation des alertes en base, 0 = illimitée (défaut : 30)")
 
     output = p.add_argument_group("interfaces")
     output.add_argument("--headless", action="store_true", help="sans TUI : alertes NDJSON sur stdout (mode capteur)")
@@ -67,10 +77,24 @@ def main(argv: list[str] | None = None) -> int:
     except FilterError as exc:
         parser.error(f"filtre d'affichage invalide : {exc}")
 
+    if args.retention < 0:
+        parser.error("--retention : nombre de jours positif attendu")
+    from .rules import RulesError, RuleSet
+    try:
+        rules = RuleSet.from_file(args.rules) if args.rules else None
+    except RulesError as exc:
+        parser.error(f"règles invalides : {exc}")
+
     from .engine import Engine, EngineConfig
     from .geoip import GeoResolver
+    from .store import StoreError
 
-    engine = Engine(EngineConfig(buffer=max(1000, args.buffer), keylog=args.tls_keylog))
+    try:
+        engine = Engine(EngineConfig(buffer=max(1000, args.buffer), keylog=args.tls_keylog, rules=rules,
+                                     db=args.db, retention_days=args.retention))
+    except StoreError as exc:
+        print(f"packetphantom : {exc}", file=sys.stderr)
+        return 1
     geo = GeoResolver(args.geo, args.geoip_db)
     api = None
     try:

@@ -7,8 +7,12 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/opt/packetphantom/.venv/bin/packetphantom --headless --api 127.0.0.1:8787 -i eth0
+ExecStart=/opt/packetphantom/.venv/bin/packetphantom --headless --api 127.0.0.1:8787 -i eth0 \
+    --db /var/lib/packetphantom/alerts.db
+# Règles facultatives : ajouter --rules /etc/packetphantom/rules.toml (voir packaging/rules.example.toml)
 Environment=PACKETPHANTOM_TOKEN=changez-moi
+StateDirectory=packetphantom
+StateDirectoryMode=0700
 StandardOutput=append:/var/log/packetphantom/alerts.ndjson
 LogsDirectory=packetphantom
 DynamicUser=yes

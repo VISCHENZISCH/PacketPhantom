@@ -1,0 +1,31 @@
+# Règles de détection PacketPhantom (option --rules ou $PACKETPHANTOM_RULES).
+# Toute clé inconnue est refusée au démarrage : une faute de frappe ne passe pas inaperçue.
+
+# Seuils (valeurs par défaut indiquées).
+[thresholds]
+scan_window = 10        # s : fenêtre d'observation des SYN
+scan_threshold = 20     # ports (scan) ou hôtes (balayage) distincts dans la fenêtre
+syn_flood_pps = 300     # SYN par seconde vers une même destination
+icmp_payload = 512      # octets de charge ICMP signalés comme tunnel possible
+dns_label_max = 50      # caractères d'un label DNS (tunnel)
+dns_name_max = 120      # caractères d'un nom DNS complet (tunnel)
+dga_min_label = 16      # longueur minimale d'un label évalué pour l'entropie
+dga_entropy = 3.7       # bits par caractère
+
+# Règles désactivées. Identifiants : arp_spoof, port_scan, host_sweep, syn_flood,
+# suspicious_port, http_basic, http_bearer, http_form, clear_auth, icmp_tunnel,
+# secret, dns_tunnel, dga, legacy_tls, telnet.
+[rules]
+disabled = []
+
+# Liste blanche : une alerte est ignorée si toutes les conditions renseignées correspondent
+# (rule, src, dst ; adresses ou réseaux CIDR). Au moins une condition est obligatoire.
+# [[allow]]
+# rule = "port_scan"
+# src = "10.0.0.50"
+# reason = "scanner de vulnérabilités interne"
+#
+# [[allow]]
+# dst = "192.168.1.0/24"
+# rule = "legacy_tls"
+# reason = "imprimantes réseau, TLS 1.0 uniquement"

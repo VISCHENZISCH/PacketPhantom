@@ -5,14 +5,17 @@
   `alerts_after`) : aucun ne « vole » les données d'un autre.
 - La file d'entrée est bornée : en capture live l'excédent est compté comme perdu,
   en lecture de fichier le lecteur attend.
+- Avec une base (`db`), les alertes, leur acquittement et la liste blanche survivent
+  au redémarrage ; les identifiants d'alerte reprennent là où ils s'étaient arrêtés.
 """
 from __future__ import annotations
 
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass
-from itertools import islice
+from collections.abc import Iterable
+from dataclasses import dataclass, replace
+from itertools import count, islice
 
 from . import _core
 from .capture import FileSource, LiveSource, Source, default_interface
@@ -20,7 +23,9 @@ from .detect import Detector
 from .flows import Conversation, Flow, FlowTable, reassemble
 from .hosts import HostTable
 from .model import Alert, Packet
+from .rules import AllowEntry, RuleSet, make_allow
 from .stats import Stats
+from .store import Store
 from .tlsdecrypt import KeyLog, decrypt_conversation
 
 BATCH = 512
@@ -35,6 +40,9 @@ class EngineConfig:
     max_alerts: int = 10_000
     queue_size: int = 100_000
     keylog: str | None = None   # SSLKEYLOGFILE pour le déchiffrement TLS
+    rules: RuleSet | None = None    # seuils, règles désactivées, liste blanche (fichier --rules)
+    db: str | None = None           # base SQLite des alertes et de la liste blanche
+    retention_days: float = 30.0    # 0 : conservation illimitée
 
 
 def _tail(items: deque, newest_id: int, after_id: int, limit: int) -> list:
@@ -48,6 +56,11 @@ class Engine:
         self.cfg = config or EngineConfig()
         self.lock = threading.RLock()
         self.keylog = KeyLog(self.cfg.keylog) if self.cfg.keylog else None
+        base = self.cfg.rules or RuleSet()
+        # Copie : les exceptions ajoutées à l'exécution ne modifient pas la configuration de l'appelant.
+        self.rules = RuleSet(base.thresholds, base.disabled, list(base.allow))
+        self.store = Store(self.cfg.db, self.cfg.retention_days) if self.cfg.db else None
+        self._allow_ids = count(1)
         self._queue: deque[tuple[bytes, float, int]] = deque()
         self._source: Source | None = None
         self._closed = threading.Event()
@@ -59,7 +72,13 @@ class Engine:
         self.last_packet_id = 0
         self.last_alert_id = 0
         self.reset()
-        threading.Thread(target=self._analysis_loop, name="analysis", daemon=True).start()
+        if self.store is not None:
+            for entry in self.store.allow_entries():
+                self.rules.add(entry)
+            self.last_alert_id = self.store.last_alert_id()
+            self.alerts.extend(self.store.recent_alerts(self.cfg.max_alerts))
+        self._thread = threading.Thread(target=self._analysis_loop, name="analysis", daemon=True)
+        self._thread.start()
 
     # ------------------------------------------------------------ état
 
@@ -68,7 +87,7 @@ class Engine:
             self.ring: deque[Packet] = deque(maxlen=self.cfg.buffer)
             self.flows = FlowTable(self.cfg.max_flows)
             self.hosts = HostTable(self.cfg.max_hosts)
-            self.detector = Detector()
+            self.detector = Detector(self.rules)
             self.alerts: deque[Alert] = deque(maxlen=self.cfg.max_alerts)
             self.stats = Stats()
             self._tls_pending: dict[int, bytes] = {}
@@ -111,6 +130,9 @@ class Engine:
     def close(self) -> None:
         self.stop()
         self._closed.set()
+        self._thread.join(timeout=5)
+        if self.store is not None:
+            self.store.close()
 
     def poll_health(self) -> str | None:
         """Met à jour l'état selon la source (fin de fichier, erreur) ; retourne l'erreur éventuelle."""
@@ -170,7 +192,11 @@ class Engine:
         self.stats.add(pkt, flow if created else None)
         for finding in self.detector.process(pkt, flow):
             self.last_alert_id += 1
-            self.alerts.append(Alert(self.last_alert_id, pkt.ts, *finding, pkt.src, pkt.dst, pkt.id, pkt.flow_id))
+            alert = Alert(self.last_alert_id, pkt.ts, finding.severity, finding.category, finding.title, finding.detail,
+                          pkt.src, pkt.dst, pkt.id, pkt.flow_id, finding.rule)
+            self.alerts.append(alert)
+            if self.store is not None:
+                self.store.add_alert(alert)
             self.stats.alerts[finding.severity] += 1
             pkt.severity = max(pkt.severity, finding.severity)
         self.ring.append(pkt)
@@ -228,9 +254,61 @@ class Engine:
         with self.lock:
             return self.flows.by_id.get(flow_id)
 
+    def alert_history(self, since: float | None = None, until: float | None = None, min_severity: int = 0,
+                      include_acked: bool = True, limit: int = 1000) -> list[Alert]:
+        """Alertes filtrées, de la plus récente à la plus ancienne (base si présente, sinon mémoire)."""
+        if self.store is not None:
+            return self.store.alerts(since, until, min_severity, include_acked, limit)
+        with self.lock:
+            items = [a for a in reversed(self.alerts)
+                     if a.severity >= min_severity and (include_acked or not a.acked)
+                     and (since is None or a.ts >= since) and (until is None or a.ts < until)]
+        return items[:limit]
+
     def alerts_for_packet(self, pid: int) -> list[Alert]:
         with self.lock:
             return [a for a in self.alerts if a.packet_id == pid]
+
+    # ------------------------------------------------------------ tri des alertes
+
+    def ack_alerts(self, ids: Iterable[int]) -> int:
+        """Acquitte des alertes (en mémoire et en base) ; retourne le nombre d'alertes nouvellement acquittées."""
+        wanted = set(ids)
+        with self.lock:
+            changed = 0
+            for alert in self.alerts:
+                if alert.id in wanted and not alert.acked:
+                    alert.acked = True
+                    changed += 1
+        if self.store is not None:   # couvre aussi les alertes sorties de la mémoire
+            return self.store.ack(wanted)
+        return changed
+
+    def allowlist(self) -> list[AllowEntry]:
+        with self.lock:
+            return list(self.rules.allow)
+
+    def add_allow(self, rule: object = None, src: object = None, dst: object = None,
+                  reason: object = "") -> tuple[AllowEntry, int]:
+        """Ajoute une exception (lève RulesError si invalide) et acquitte les alertes en mémoire qu'elle couvre.
+
+        Retourne l'exception et le nombre d'alertes acquittées.
+        """
+        entry = make_allow(0, rule, src, dst, reason, where="exception")
+        entry_id = self.store.add_allow(entry) if self.store is not None else next(self._allow_ids)
+        entry = replace(entry, id=entry_id)
+        with self.lock:
+            self.rules.add(entry)
+            covered = [a.id for a in self.alerts if not a.acked and entry.matches(a.rule, a.src, a.dst)]
+        return entry, self.ack_alerts(covered) if covered else 0
+
+    def remove_allow(self, entry_id: int) -> bool:
+        """Retire une exception créée depuis l'API (celles du fichier --rules ne se retirent que dans le fichier)."""
+        with self.lock:
+            removed = self.rules.remove(entry_id)
+        if removed and self.store is not None:
+            self.store.remove_allow(entry_id)
+        return removed
 
     def conversation(self, flow_id: int) -> Conversation | None:
         """Conversation reconstituée, déchiffrée si TLS et si le keylog contient la session."""

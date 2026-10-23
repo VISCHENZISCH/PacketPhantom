@@ -4,6 +4,7 @@ textual>=8.0.0
 rich>=13.0.0
 requests>=2.28.0
 cryptography>=42
+tomli>=2.0; python_version < "3.11"
 
 # Optionnel : géolocalisation hors ligne (base GeoLite2-City.mmdb)
 # maxminddb>=2.4.0

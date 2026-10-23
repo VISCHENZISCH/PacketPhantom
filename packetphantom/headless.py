@@ -26,7 +26,8 @@ def run(engine: Engine, geo: GeoResolver, api: Api | None = None, out: TextIO = 
     if api is not None:
         _log(f"tableau de bord : {api.url}")
 
-    cursor = 0
+    # Seules les nouvelles alertes sont émises : celles rechargées depuis la base (--db) l'ont déjà été.
+    cursor = engine.last_alert_id
 
     def flush_alerts() -> None:
         nonlocal cursor

@@ -44,6 +44,8 @@ packetphantom/
   pcapio.py          lecture pcap/pcapng, écriture pcap
   flows.py hosts.py  conversations et inventaire des hôtes (DNS passif, OS, services)
   detect.py          règles de détection
+  rules.py           configuration de la détection (TOML) : seuils, règles désactivées, liste blanche
+  store.py           persistance SQLite : alertes, acquittements, exceptions
   tlsdecrypt.py      déchiffrement TLS 1.2 / 1.3 (SSLKEYLOGFILE)
   filters.py         langage de filtre d'affichage
   analytics.py       agrégats partagés TUI / API
@@ -51,7 +53,7 @@ packetphantom/
   api.py web/        API REST, SSE et tableau de bord
   headless.py        mode capteur
   ui/                interface Textual
-tests/               48 tests : cœur Rust (avec fuzzing), moteur, détection, déchiffrement sur de vraies sessions OpenSSL, API, TUI
+tests/               70 tests : cœur Rust (avec fuzzing), moteur, détection, règles, persistance, déchiffrement sur de vraies sessions OpenSSL, API, TUI
 ```
 
 ## Installation
@@ -106,11 +108,11 @@ Suites prises en charge : `TLS_AES_128/256_GCM`, `TLS_CHACHA20_POLY1305` (TLS 1.
 ### Mode capteur (production)
 
 ```bash
-docker run --rm --net=host --cap-add=NET_RAW --cap-add=NET_ADMIN \
-  -e PACKETPHANTOM_TOKEN=mon-jeton packetphantom -i eth0
+docker run --rm --net=host --cap-add=NET_RAW --cap-add=NET_ADMIN -v pp-data:/data \
+  -e PACKETPHANTOM_TOKEN=mon-jeton packetphantom -i eth0 --db /data/alerts.db
 ```
 
-Une unité systemd durcie est fournie dans [packaging/packetphantom.service](packaging/packetphantom.service). Elle tourne avec un utilisateur dynamique et uniquement les capacités `CAP_NET_RAW` et `CAP_NET_ADMIN`. Les alertes sont journalisées en NDJSON, prêtes pour Elastic, Splunk ou Loki.
+Une unité systemd durcie est fournie dans [packaging/packetphantom.service](packaging/packetphantom.service). Elle tourne avec un utilisateur dynamique et uniquement les capacités `CAP_NET_RAW` et `CAP_NET_ADMIN`, et conserve ses alertes dans `/var/lib/packetphantom/alerts.db`. Les alertes sont journalisées en NDJSON, prêtes pour Elastic, Splunk ou Loki. Au redémarrage, seules les nouvelles alertes sont émises : celles de la base ne sont pas rejouées.
 
 ## API REST
 
@@ -126,6 +128,11 @@ Toutes les routes exigent le jeton : en-tête `Authorization: Bearer <jeton>`, o
 | GET | `/api/flows/{id}/conversation` | échange reconstitué, **déchiffré** si possible |
 | GET | `/api/hosts?sort=` | inventaire des hôtes |
 | GET | `/api/alerts?after=` | alertes (lecture incrémentale) |
+| GET | `/api/alerts/history?since=&until=&min_severity=&acked=0&limit=` | historique filtré (base SQLite si `--db`, sinon mémoire) |
+| POST | `/api/alerts/ack` `{"ids":[1,2]}` | acquitter des alertes |
+| GET | `/api/allowlist` | exceptions de la liste blanche et catalogue des règles |
+| POST | `/api/allowlist` `{"rule","src","dst","reason"}` | ajouter une exception (acquitte les alertes qu'elle couvre) |
+| DELETE | `/api/allowlist/{id}` | retirer une exception créée depuis l'API |
 | GET | `/api/analytics` | protocoles, hôtes actifs, domaines, services, pays |
 | GET | `/api/export.pcap?filter=` | export PCAP filtré |
 | GET | `/api/interfaces` | interfaces disponibles |
@@ -148,6 +155,19 @@ Sécurité : l'API écoute sur `127.0.0.1` par défaut. Le jeton est comparé en
 | Jeton Bearer en HTTP ; secrets en clair (AWS, clés privées, JWT, GitHub, Slack) | Élevée |
 | Tunnel DNS, ports suspects (4444, 31337, Tor, IRC…), session Telnet | Moyenne |
 | Domaine à forte entropie (DGA), TLS ≤ 1.1, ICMP volumineux | Faible |
+
+Les seuils indiqués sont ceux par défaut.
+
+### Règles, liste blanche et persistance
+
+```bash
+packetphantom --rules packaging/rules.example.toml --db ~/.local/share/packetphantom/alerts.db
+```
+
+- `--rules FICHIER` (ou `$PACKETPHANTOM_RULES`) : fichier TOML qui règle les seuils, désactive des règles et déclare des exceptions par règle, source et destination (adresses ou réseaux CIDR). Voir [packaging/rules.example.toml](packaging/rules.example.toml). Toute clé inconnue est refusée au démarrage, pour qu'une faute de frappe ne désactive rien en silence.
+- Identifiants de règles : `arp_spoof`, `port_scan`, `host_sweep`, `syn_flood`, `suspicious_port`, `http_basic`, `http_bearer`, `http_form`, `clear_auth`, `icmp_tunnel`, `secret`, `dns_tunnel`, `dga`, `legacy_tls`, `telnet`. Chaque alerte porte le sien (champ `rule`).
+- Tableau de bord : une alerte s'ouvre en détail, puis se marque **acquittée** ou s'**ignore pour sa source** (exception). La vue **Exceptions** liste et retire ces exceptions. Le badge du menu compte les alertes à traiter.
+- `--db FICHIER` (ou `$PACKETPHANTOM_DB`) : alertes, acquittements et exceptions survivent au redémarrage. Les écritures sont groupées par un thread dédié, l'analyse n'attend jamais le disque. Le fichier est créé en `0600`, car les alertes peuvent contenir des identifiants capturés en clair. `--retention JOURS` (30 par défaut, 0 = illimité) se compte depuis l'enregistrement, pas depuis l'heure des paquets.
 
 ## TUI : raccourcis
 

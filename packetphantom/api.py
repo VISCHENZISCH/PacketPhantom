@@ -22,13 +22,16 @@ from .engine import Engine
 from .filters import FilterError, compile_filter
 from .geoip import GeoResolver
 from .layers import hexdump, layer_tree
+from .rules import RULES, RulesError
 
 MAX_BODY = 65_536
+MAX_ACK = 10_000
 STATIC = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/style.css": ("style.css", "text/css; charset=utf-8"),
     "/theme.js": ("theme.js", "text/javascript; charset=utf-8"),
+    "/logo.svg": ("logo.svg", "image/svg+xml"),
 }
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -56,6 +59,14 @@ class Request(NamedTuple):
         except ValueError as exc:
             raise ApiError(400, f"Paramètre {name} : entier attendu") from exc
         return min(value, maximum) if maximum is not None else value
+
+    def float(self, name: str) -> float | None:
+        if name not in self.query:
+            return None
+        try:
+            return float(self.query[name])
+        except ValueError as exc:
+            raise ApiError(400, f"Paramètre {name} : nombre attendu (horodatage Unix)") from exc
 
 
 class File(NamedTuple):
@@ -162,6 +173,45 @@ def alerts(api: Api, req: Request) -> dict:
     return {"items": [serialize.alert(a) for a in items], "last_id": api.engine.last_alert_id}
 
 
+@route("GET", "/api/alerts/history")
+def alert_history(api: Api, req: Request) -> dict:
+    items = api.engine.alert_history(
+        since=req.float("since"), until=req.float("until"), min_severity=req.int("min_severity", 0, 4),
+        include_acked=req.query.get("acked", "1") != "0", limit=req.int("limit", 500, 10_000))
+    return {"items": [serialize.alert(a) for a in items], "persistent": api.engine.store is not None}
+
+
+@route("POST", "/api/alerts/ack")
+def ack_alerts(api: Api, req: Request) -> dict:
+    ids = req.body.get("ids")
+    if (not isinstance(ids, list) or len(ids) > MAX_ACK
+            or not all(isinstance(i, int) and not isinstance(i, bool) and i > 0 for i in ids)):
+        raise ApiError(400, f"ids : liste d'identifiants d'alerte attendue ({MAX_ACK} au plus)")
+    return {"acked": api.engine.ack_alerts(ids)}
+
+
+@route("GET", "/api/allowlist")
+def allowlist(api: Api, req: Request) -> dict:
+    return {"items": [e.to_dict() for e in api.engine.allowlist()], "rules": RULES}
+
+
+@route("POST", "/api/allowlist")
+def allow(api: Api, req: Request) -> dict:
+    body = req.body
+    try:
+        entry, acked = api.engine.add_allow(body.get("rule"), body.get("src"), body.get("dst"), body.get("reason", ""))
+    except RulesError as exc:
+        raise ApiError(400, str(exc)) from exc
+    return {"entry": entry.to_dict(), "acked": acked}
+
+
+@route("DELETE", r"/api/allowlist/(\d+)")
+def disallow(api: Api, req: Request, entry_id: str) -> dict:
+    if not api.engine.remove_allow(int(entry_id)):
+        raise ApiError(404, "Exception inconnue (celles du fichier --rules se retirent dans le fichier)")
+    return {"removed": int(entry_id)}
+
+
 @route("GET", "/api/export.pcap")
 def export_pcap(api: Api, req: Request) -> File:
     body = pcapio.dumps((p.data, p.ts, p.linktype) for p in _filtered_packets(api, req))
@@ -202,6 +252,9 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         self._dispatch("POST")
+
+    def do_DELETE(self) -> None:
+        self._dispatch("DELETE")
 
     @property
     def api(self) -> Api:

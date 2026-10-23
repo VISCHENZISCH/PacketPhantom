@@ -26,6 +26,9 @@ def status(engine: Engine, geo: GeoResolver) -> dict:
             "last_packet": engine.last_packet_id, "last_alert": engine.last_alert_id,
             "pps": list(st.pps), "bps": list(st.bps), "geo": geo.note,
             "tls_keylog": engine.keylog is not None,
+            "unacked": sum(not a.acked for a in engine.alerts),
+            "persistent": engine.store is not None,
+            "store_error": engine.store.error if engine.store is not None else None,
         }
 
 

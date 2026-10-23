@@ -89,6 +89,12 @@ const ICONS = {
   shield: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 8v4M12 16h.01",
   plus: "M12 5v14M5 12h14",
   radar: "M12 12 19 5M12 2a10 10 0 1 0 10 10M12 6a6 6 0 1 0 6 6M12 10a2 2 0 1 0 2 2",
+  x: "M18 6 6 18M6 6l12 12",
+  info: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01",
+  warn: "M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01",
+  check: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM8 12l3 3 5-6",
+  mute: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM3 3l18 18",
+  trash: "M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6",
 };
 
 function icon(name, solid = false) {
@@ -147,25 +153,124 @@ const state = {
   statusAt: 0,
   frozen: false,
   busy: false,
+  conditions: new Map(),
+  notifications: [],
+  unread: 0,
+  rules: {},   // identifiant de règle → description (GET /api/allowlist)
 };
 
-function banner(message) {
-  const el = $("#banner");
-  el.hidden = !message;
-  el.textContent = message ?? "";
+const ruleName = (id) => state.rules[id] ?? id;
+
+/* Fenêtre de message : tone = error | warn | info | ok. Résout avec la valeur du bouton choisi. */
+const MESSAGE_TONES = {
+  error: { sev: "4", icon: "warn" },
+  warn: { sev: "2", icon: "warn" },
+  info: { sev: "info", icon: "info" },
+  ok: { sev: "ok", icon: "check" },
+};
+
+/* Les messages s'affichent l'un après l'autre : aucun n'en écrase un autre resté ouvert. */
+let messageQueue = Promise.resolve();
+
+function showMessage(options) {
+  const shown = messageQueue.then(() => presentMessage(options));
+  messageQueue = shown;
+  return shown;
 }
 
-function toast(alert) {
-  const el = h("div", { class: "toast" },
-    h("span", { class: `tile round tone-${alert.severity}` }, icon("shield")),
-    h("div", {}, h("b", {}, alert.title), h("small", {}, `${SEVERITY[alert.severity]} · ${alert.detail.split("\n")[0]}`)));
+function presentMessage({ tone = "info", title, text, actions = [{ label: "Compris", value: true, primary: true }] }) {
+  const dialog = $("#message");
+  const look = MESSAGE_TONES[tone];
+  dialog.dataset.sev = look.sev;
+  setIcon($(".message-icon i", dialog), look.icon);
+  $("#message-title").textContent = title;
+  $("#message-text").textContent = text;
+  return new Promise((resolve) => {
+    $("#message-actions").replaceChildren(...actions.map((a) => h("button", {
+      class: `btn ${a.primary ? (tone === "error" ? "btn-danger" : "btn-primary") : "btn-ghost"}`,
+      type: "button",
+      onclick: () => dialog.close(String(a.value)),
+    }, a.label)));
+    dialog.returnValue = "";
+    dialog.addEventListener("close", () => resolve(dialog.returnValue), { once: true });
+    dialog.showModal();
+  });
+}
+
+const failure = (error) => showMessage({ tone: "error", title: "Action impossible", text: error.message });
+
+/* Condition durable (erreur de capture, perte de paquets, connexion…) :
+   signalée une seule fois tant qu'elle dure, oubliée dès qu'elle disparaît. */
+function condition(key, title, text) {
+  if (!text) {
+    state.conditions.delete(key);
+    return;
+  }
+  if (state.conditions.has(key)) return;
+  state.conditions.set(key, text);
+  showMessage({ tone: "warn", title, text });
+}
+
+/* Notification éphémère (7 s, en pause au survol) ; sev = 0-4 | ok | info. */
+function notify({ sev = "info", icon: name = "info", title, text, action = null }) {
+  const el = h("div", { class: "notify", role: "status", "data-sev": sev },
+    h("span", { class: "tile round" }, icon(name)),
+    h("div", { class: "notify-body" }, h("b", { title }, title), h("p", {}, text),
+      action ? h("button", { class: "btn btn-outline btn-sm", type: "button", onclick: () => { dismiss(); action.run(); } }, action.label) : null),
+    h("button", { class: "round-btn close-btn", type: "button", "aria-label": "Fermer", onclick: () => dismiss() }, icon("x")),
+    h("span", { class: "notify-timer", onanimationend: () => dismiss() }));
+  function dismiss() {
+    el.classList.add("leaving");
+  }
+  // La fin du minuteur remonte aussi jusqu'ici : seule l'animation de sortie de la carte compte.
+  el.addEventListener("animationend", (event) => {
+    if (event.target === el && el.classList.contains("leaving")) el.remove();
+  });
   $("#toasts").append(el);
-  setTimeout(() => el.remove(), 7000);
+  while ($("#toasts").children.length > 4) $("#toasts").firstElementChild.remove();
+}
+
+/* Centre de notifications : historique des alertes reçues en temps réel. */
+const NOTIFICATIONS_KEPT = 30;
+
+function pushNotification(alert) {
+  state.notifications.unshift(alert);
+  state.notifications.length = Math.min(state.notifications.length, NOTIFICATIONS_KEPT);
+  state.unread += 1;
+  renderBell();
+  if ($("#notif-panel").open) renderNotifications();
+}
+
+function renderBell() {
+  $("#bell-dot").hidden = !state.unread;
+}
+
+function renderNotifications() {
+  const items = state.notifications;
+  $("#notif-count").textContent = state.unread ? `${state.unread} non lue${state.unread > 1 ? "s" : ""}` : "";
+  $("#notif-list").replaceChildren(...(items.length
+    ? items.map((a, i) => row({
+      lead: h("span", { class: `tile round tone-${a.severity}` }, icon("shield")),
+      attrs: { class: `row${i < state.unread ? " unread" : ""}` },
+      title: a.title,
+      trailing: severityPill(a.severity),
+      details: meta(`${a.src} → ${a.dst} · ${fmt.ago(a.ts)}`),
+      onClick: () => { $("#notif-panel").close(); openAlert(a); },
+    }))
+    : [row({ lead: h("span", { class: "tile round tone-ok" }, icon("check")), title: "Aucune notification",
+      details: meta("Les nouvelles alertes apparaîtront ici.") })]));
+}
+
+function openNotifications() {
+  renderNotifications();
+  $("#notif-panel").showModal();
+  state.unread = 0;
+  renderBell();
 }
 
 // ================================================================== graphiques
 
-/* Histogramme « en bande » : 8 piliers de 15 s ; pic en orange foncé, période en cours en orange clair. */
+/* Histogramme « en bande » : 8 piliers de 15 s ; pic en orange foncé, forts en orange, période en cours en orange clair. */
 const PILLS = 8;
 
 function buildPills() {
@@ -184,7 +289,8 @@ function renderPills(bps) {
     const height = `${Math.max(16, (buckets[i] / top) * 100)}%`;
     const current = i === PILLS - 1;
     const pill = $(".pill", col);
-    pill.className = `pill ${current ? "current" : i === peak && buckets[i] > 0 ? "peak" : ""}`;
+    const level = i === peak && buckets[i] > 0 ? "peak" : buckets[i] >= top * 0.6 ? "high" : "";
+    pill.className = `pill ${current ? "current" : level}`;
     pill.style.height = height;
     const tip = $(".pill-tip", col);
     tip.hidden = !current;
@@ -268,19 +374,25 @@ function renderStatus(s) {
   state.status = s;
   state.statusAt = Date.now();
   const live = s.mode === "live";
-  const alerts = sum(Object.values(s.alerts));
+  const pending = s.unacked ?? 0;
 
-  $("#source-name").textContent = s.source || "-";
+  // Un fichier est désigné par son nom seul ; le chemin complet reste en info-bulle.
+  const sourceName = s.mode === "live" || s.mode === "idle" ? s.source : s.source?.split(/[\\/]/).pop();
+  $("#source-name").textContent = sourceName || "-";
+  $("#source-name").title = s.source || "";
   $("#source-state").textContent = { live: "Capture en direct", file: "Lecture de fichier", done: "Fichier analysé", idle: "Capture arrêtée" }[s.mode] ?? s.mode;
   $(".source").classList.toggle("live", live);
-  $("#promo-text").textContent = `${s.source || "Interface par défaut"} · BPF ${s.bpf || "aucun"}`;
-  $("#nav-badge").hidden = !alerts;
-  $("#nav-badge").textContent = alerts > 99 ? "99+" : String(alerts);
-  $("#bell-dot").hidden = !(s.alerts["4"] || s.alerts["3"]);
+  $("#promo-text").textContent = `${sourceName || "Interface par défaut"} · BPF ${s.bpf || "aucun"}`;
+  $("#nav-badge").hidden = !pending;
+  $("#nav-badge").textContent = pending > 99 ? "99+" : String(pending);
+  $("#nav-badge").title = `${pending} alerte${pending > 1 ? "s" : ""} à traiter`;
 
   $$(".capture-icon").forEach((el) => setIcon(el, live ? "stop" : "play"));
   $$(".capture-label").forEach((el) => { el.textContent = live ? el.dataset.stop : el.dataset.start; });
-  banner(s.error || (s.dropped ? `${fmt.count(s.dropped)} paquets perdus (file d'analyse saturée) - restreignez la capture avec un filtre BPF.` : ""));
+  condition("capture", "Erreur de capture", s.error);
+  condition("store", "Enregistrement des alertes", s.store_error);
+  condition("dropped", "Paquets perdus", s.dropped
+    ? `${fmt.count(s.dropped)} paquets perdus (file d'analyse saturée) - restreignez la capture avec un filtre BPF.` : "");
 
   for (const [key, kpi] of Object.entries(KPIS)) {
     const card = $(`[data-kpi="${key}"]`);
@@ -345,7 +457,7 @@ function renderRecentAlerts(alerts) {
       title: a.title,
       trailing: severityPill(a.severity),
       details: meta(`${a.category} · ${a.src} → ${a.dst} · ${fmt.ago(a.ts)}`),
-      onClick: () => openPacket(a.packet),
+      onClick: () => openAlert(a),
     }))
     : [row({ lead: h("span", { class: "event-dot" }), attrs: { "data-sev": "ok" }, title: "Aucune alerte",
       trailing: h("span", { class: "status ok-pill" }, "Sain"), details: meta("Rien de suspect détecté.") })]));
@@ -357,7 +469,7 @@ function renderRecentAlerts(alerts) {
     ? `${SEVERITY[latest.severity]} · ${fmt.time(latest.time)} · ${latest.src} → ${latest.dst}`
     : "Le réseau semble calme.";
   button.disabled = !latest;
-  button.onclick = latest ? () => openPacket(latest.packet) : null;
+  button.onclick = latest ? () => openAlert(latest) : null;
 }
 
 async function refreshDashboard() {
@@ -375,14 +487,15 @@ const geoText = (geo) => (geo ? `${geo.country}${geo.city ? ` · ${geo.city}` : 
 const sorter = (kind) => ({ value: state.sort[kind], set: (key) => { state.sort[kind] = key; refresh(); } });
 const STATE_OK = new Set(["ESTABLISHED", "CLOSED"]);
 
-/* columns : [{ label, cell(row) → texte|Node, cls?, sort? }] */
-function table(columns, rows, onClick, sortState) {
+/* columns : [{ label, cell(row) → texte|Node, cls?, sort? }] ; onClick facultatif ; rowClass(row) → classe. */
+function table(columns, rows, onClick, sortState, rowClass = () => "") {
   if (!rows.length) return h("div", { class: "empty" }, "Aucune donnée pour l'instant.");
   const head = columns.map((col) => h("th", {
     class: [col.sort && "sortable", col.sort && sortState?.value === col.sort && "sorted"].filter(Boolean).join(" "),
     onclick: col.sort ? () => sortState.set(col.sort) : undefined,
   }, col.label));
-  const body = rows.map((row) => h("tr", { onclick: () => onClick(row) },
+  const body = rows.map((row) => h("tr", { class: [rowClass(row), !onClick && "inert"].filter(Boolean).join(" "),
+    onclick: onClick ? () => onClick(row) : undefined },
     columns.map((col) => h("td", { class: col.cls }, col.cell(row) ?? ""))));
   return h("table", {}, h("thead", {}, h("tr", {}, head)), h("tbody", {}, body));
 }
@@ -395,6 +508,18 @@ const COLUMNS = {
     { label: "Alerte", cell: (a) => h("b", {}, a.title) },
     { label: "Source", cell: (a) => a.src, cls: "mono" },
     { label: "Destination", cell: (a) => a.dst, cls: "mono" },
+    { label: "État", cell: (a) => (a.acked ? h("span", { class: "status ok-pill" }, "Acquittée") : h("span", { class: "status sev-0" }, "À traiter")) },
+  ],
+  allowlist: [
+    { label: "Règle", cell: (e) => (e.rule ? h("b", { title: e.rule }, ruleName(e.rule)) : "Toutes") },
+    { label: "Source", cell: (e) => e.src ?? "Toutes", cls: "mono" },
+    { label: "Destination", cell: (e) => e.dst ?? "Toutes", cls: "mono" },
+    { label: "Motif", cell: (e) => e.reason || "-" },
+    { label: "Origine", cell: (e) => h("span", { class: `status ${e.origin === "api" ? "sev-1" : "sev-0"}` }, e.origin === "api" ? "Tableau de bord" : "Fichier --rules") },
+    { label: "Créée", cell: (e) => (e.created ? fmt.ago(e.created) : "-") },
+    { label: "", cell: (e) => (e.origin === "api"
+      ? h("button", { class: "round-btn close-btn", type: "button", "aria-label": "Supprimer l'exception", onclick: () => removeAllow(e) }, icon("trash"))
+      : "") },
   ],
   packets: [
     { label: "", cell: (p) => (p.severity === null ? "" : h("span", { class: `mark sev-${p.severity}` })) },
@@ -457,7 +582,18 @@ const VIEWS = {
     title: "Alertes",
     subtitle: () => "Détections en temps réel, de la plus récente à la plus ancienne.",
     load: () => api("/api/alerts", { limit: 2000 }),
-    render: (d) => table(COLUMNS.alerts, d.items.reverse(), (a) => openPacket(a.packet)),
+    render: (d) => table(COLUMNS.alerts, d.items.reverse(), openAlert, null, (a) => (a.acked ? "acked" : "")),
+  },
+  allowlist: {
+    title: "Exceptions",
+    subtitle: () => "Liste blanche : alertes ignorées par règle, source ou destination. Celles du fichier --rules se modifient dans le fichier.",
+    load: () => api("/api/allowlist"),
+    render: (d) => {
+      state.rules = d.rules;
+      return d.items.length
+        ? table(COLUMNS.allowlist, d.items)
+        : h("div", { class: "empty" }, "Aucune exception. Depuis une alerte, « Ignorer » en crée une.");
+    },
   },
   analytics: {
     title: "Analyse",
@@ -481,7 +617,7 @@ const VIEWS = {
 };
 
 async function refresh() {
-  if (state.busy || state.frozen || document.hidden || $("#modal").open) return;
+  if (state.busy || state.frozen || document.hidden || $("dialog[open]")) return;
   state.busy = true;
   const view = VIEWS[state.view];
   try {
@@ -494,12 +630,13 @@ async function refresh() {
       $("#list-subtitle").textContent = view.subtitle();
     }
     $(".search").classList.remove("bad");
+    condition("refresh", "", "");
   } catch (error) {
     if (state.view === "packets") {
       $(".search").classList.add("bad");
       $("#list-subtitle").textContent = error.message;
     } else {
-      banner(error.message);
+      condition("refresh", "Actualisation impossible", error.message);
     }
   } finally {
     state.busy = false;
@@ -528,14 +665,79 @@ function pivot(filter) {
 
 // ================================================================== fenêtres de détail
 
-function openModal(title, ...content) {
+function openModal(title, iconName, ...content) {
   $("#modal-title").textContent = title;
+  setIcon($("#modal-icon i"), iconName);
   $("#modal-body").replaceChildren(...content.flat().filter(Boolean));
   $("#modal").showModal();
 }
 
 const keyValues = (pairs) => h("dl", { class: "kv" }, pairs.filter(([, v]) => v !== "" && v !== null && v !== undefined)
   .flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)]));
+
+function openAlert(a) {
+  const close = () => $("#modal").close();
+  openModal(a.title, "shield",
+    keyValues([
+      ["Heure", a.time.replace("T", " ")], ["Sévérité", severityPill(a.severity)], ["Règle", `${ruleName(a.rule)} (${a.rule})`],
+      ["Catégorie", a.category], ["Source", a.src], ["Destination", a.dst],
+      ["État", a.acked ? "Acquittée" : "À traiter"],
+    ]),
+    a.detail ? h("pre", {}, a.detail) : null,
+    h("div", { class: "modal-actions" },
+      a.packet ? h("button", { class: "btn btn-outline", type: "button", onclick: () => { close(); openPacket(a.packet); } },
+        icon("list"), "Voir le paquet") : null,
+      h("button", { class: "btn btn-ghost", type: "button", onclick: () => ignoreAlert(a) }, icon("mute"), "Ignorer pour cette source"),
+      a.acked ? null : h("button", { class: "btn btn-primary", type: "button", onclick: () => { close(); ackAlerts([a.id]); } },
+        icon("check"), "Acquitter")));
+}
+
+async function ackAlerts(ids) {
+  try {
+    const { acked } = await api("/api/alerts/ack", {}, { method: "POST", body: JSON.stringify({ ids }) });
+    notify({ sev: "ok", icon: "check", title: acked > 1 ? `${acked} alertes acquittées` : "Alerte acquittée", text: "Elle reste consultable dans l'historique." });
+    refresh();
+  } catch (error) {
+    failure(error);
+  }
+}
+
+async function ignoreAlert(a) {
+  const choice = await showMessage({
+    tone: "warn",
+    title: "Ignorer ces alertes ?",
+    text: `« ${ruleName(a.rule)} » ne sera plus signalée pour ${a.src}. Les alertes actuelles correspondantes seront acquittées. Vous pourrez annuler depuis Exceptions.`,
+    actions: [{ label: "Annuler", value: "" }, { label: "Ignorer", value: "yes", primary: true }],
+  });
+  if (choice !== "yes") return;
+  try {
+    const { acked } = await api("/api/allowlist", {}, {
+      method: "POST", body: JSON.stringify({ rule: a.rule, src: a.src, reason: `Depuis l'alerte #${a.id} : ${a.title}`.slice(0, 200) }),
+    });
+    $("#modal").close();
+    notify({ sev: "ok", icon: "mute", title: "Exception ajoutée", text: `${ruleName(a.rule)} · ${a.src}${acked ? ` · ${acked} alerte(s) acquittée(s)` : ""}` });
+    refresh();
+  } catch (error) {
+    failure(error);
+  }
+}
+
+async function removeAllow(e) {
+  const choice = await showMessage({
+    tone: "warn",
+    title: "Supprimer l'exception ?",
+    text: `${e.rule ? ruleName(e.rule) : "Toutes les règles"} · source ${e.src ?? "toutes"} · destination ${e.dst ?? "toutes"}. Les alertes correspondantes seront de nouveau levées.`,
+    actions: [{ label: "Annuler", value: "" }, { label: "Supprimer", value: "yes", primary: true }],
+  });
+  if (choice !== "yes") return;
+  try {
+    await api(`/api/allowlist/${e.id}`, {}, { method: "DELETE" });
+    notify({ sev: "info", icon: "trash", title: "Exception supprimée", text: e.reason || ruleName(e.rule ?? "") });
+    refresh();
+  } catch (error) {
+    failure(error);
+  }
+}
 
 async function openPacket(id) {
   try {
@@ -544,7 +746,7 @@ async function openPacket(id) {
       h("summary", {}, layer.name),
       h("table", {}, h("tbody", {}, layer.fields.map(([k, v]) => h("tr", {}, h("td", { class: "muted" }, k), h("td", { class: "mono" }, v)))))));
     const hex = p.hex.map(([offset, bytes, ascii]) => `${offset}  ${bytes.padEnd(49)} │${ascii}`).join("\n");
-    openModal(`Paquet ${p.id} · ${p.proto}`,
+    openModal(`Paquet ${p.id} · ${p.proto}`, "list",
       keyValues([
         ["Heure", p.time], ["Source", fmt.endpoint(p.src, p.sport)], ["Destination", fmt.endpoint(p.dst, p.dport)],
         ["Longueur", `${p.length} octets`], ["Info", p.info], ["Domaine", p.domain], ["JA3", p.ja3], ["JA4", p.ja4],
@@ -555,7 +757,7 @@ async function openPacket(id) {
       layers,
       h("details", {}, h("summary", {}, "Hexadécimal"), h("pre", {}, hex)));
   } catch (error) {
-    banner(error.message);
+    failure(error);
   }
 }
 
@@ -564,7 +766,7 @@ async function openConversation(flowId) {
     const c = await api(`/api/flows/${flowId}/conversation`);
     const f = c.flow;
     const bytesFrom = (client) => fmt.bytes(sum(c.chunks.filter((x) => x.client === client).map((x) => x.size)));
-    openModal(`Flux #${f.id} · ${f.app || f.l4}`,
+    openModal(`Flux #${f.id} · ${f.app || f.l4}`, "flow",
       keyValues([
         ["Client", `${fmt.endpoint(f.client, f.client_port)} → ${bytesFrom(true)}`],
         ["Serveur", `${fmt.endpoint(f.server, f.server_port)} → ${bytesFrom(false)}`],
@@ -577,13 +779,13 @@ async function openConversation(flowId) {
       h("button", { class: "btn btn-outline", type: "button", onclick: () => { $("#modal").close(); pivot(`flow == ${f.id}`); } },
         "Voir les paquets de ce flux"));
   } catch (error) {
-    banner(error.message);
+    failure(error);
   }
 }
 
 function openHelp() {
   const rows = (pairs) => h("table", {}, h("tbody", {}, pairs.map(([k, v]) => h("tr", {}, h("td", { class: "mono" }, k), h("td", {}, v)))));
-  openModal("Aide & API",
+  openModal("Aide & API", "help",
     h("div", { class: "help-grid" },
       h("section", {}, h("h3", {}, "Filtre d'affichage"), rows([
         ["tls or dns", "protocoles"], ["ip.addr == 10.0.0.0/8", "adresse ou réseau"], ["port 443", "port"],
@@ -592,7 +794,8 @@ function openHelp() {
       h("section", {}, h("h3", {}, "API REST (jeton Bearer)"), rows([
         ["GET /api/status", "état et compteurs"], ["GET /api/events", "flux SSE temps réel"], ["GET /api/packets?filter=", "paquets"],
         ["GET /api/flows/{id}/conversation", "échange (déchiffré)"], ["GET /api/export.pcap", "export PCAP"],
-        ["POST /api/capture", "démarrer / arrêter"],
+        ["POST /api/capture", "démarrer / arrêter"], ["GET /api/alerts/history", "historique filtré"],
+        ["POST /api/alerts/ack", "acquitter"], ["GET|POST /api/allowlist", "exceptions"],
       ]))));
 }
 
@@ -601,9 +804,13 @@ function openHelp() {
 async function toggleCapture() {
   try {
     const action = state.status?.mode === "live" ? "stop" : "start";
-    renderStatus(await api("/api/capture", {}, { method: "POST", body: JSON.stringify({ action }) }));
+    const s = await api("/api/capture", {}, { method: "POST", body: JSON.stringify({ action }) });
+    renderStatus(s);
+    notify(action === "start"
+      ? { sev: "ok", icon: "radar", title: "Capture démarrée", text: `${s.source || "Interface par défaut"} · BPF ${s.bpf || "aucun"}` }
+      : { sev: "info", icon: "stop", title: "Capture arrêtée", text: `${fmt.count(s.packets)} paquets analysés.` });
   } catch (error) {
-    banner(error.message);
+    failure(error);
   }
 }
 
@@ -624,6 +831,7 @@ const ACTIONS = {
   export: () => location.assign(apiUrl("/api/export.pcap", { token, filter: state.view === "packets" ? state.filter : "" })),
   theme: () => { window.ppTheme.toggle(); renderThemeControls(); },
   help: openHelp,
+  notifications: openNotifications,
   freeze: toggleFreeze,
 };
 
@@ -634,10 +842,17 @@ function connectEvents() {
   source.addEventListener("status", (event) => { if (!state.frozen) renderStatus(JSON.parse(event.data)); });
   source.addEventListener("alert", (event) => {
     const alert = JSON.parse(event.data);
-    if (alert.severity >= 3) toast(alert);
+    pushNotification(alert);
+    if (alert.severity >= 3) {
+      notify({
+        sev: String(alert.severity), icon: "shield", title: alert.title,
+        text: `${SEVERITY[alert.severity]} · ${alert.detail.split("\n")[0]}`,
+        action: { label: "Voir le paquet", run: () => openPacket(alert.packet) },
+      });
+    }
   });
-  source.onerror = () => banner("Connexion temps réel interrompue - nouvelle tentative…");
-  source.onopen = () => banner(state.status?.error ?? "");
+  source.onerror = () => condition("events", "Connexion interrompue", "La connexion temps réel est coupée. Nouvelle tentative en cours…");
+  source.onopen = () => condition("events", "", "");
 }
 
 function init() {
@@ -645,13 +860,15 @@ function init() {
   renderThemeControls();
   buildPills();
   if (!token) {
-    banner("Jeton absent : ouvrez l'adresse affichée au lancement de PacketPhantom (elle contient #token=…).");
+    showMessage({ tone: "error", title: "Jeton absent",
+      text: "Ouvrez l'adresse affichée au lancement de PacketPhantom (elle contient #token=…)." });
     return;
   }
   document.addEventListener("click", (event) => {
-    const target = event.target.closest("[data-view], [data-action]");
+    const target = event.target.closest("[data-view], [data-action], [data-close]");
     if (!target) return;
     event.preventDefault();
+    if (target.dataset.view || "close" in target.dataset) target.closest("dialog")?.close();
     if (target.dataset.view) showView(target.dataset.view);
     else ACTIONS[target.dataset.action]?.();
   });
@@ -664,10 +881,14 @@ function init() {
       $("#filter").focus();
     }
   });
-  $("#modal-close").addEventListener("click", () => $("#modal").close());
+  // Un clic sur le voile (hors du contenu) ferme la fenêtre ; le message attend un choix explicite.
+  for (const dialog of $$("#modal, #notif-panel")) {
+    dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+  }
   setInterval(renderUptime, 1000);
   setInterval(refresh, 2500);
   connectEvents();
+  api("/api/allowlist").then((d) => { state.rules = d.rules; }).catch(() => { /* descriptions facultatives */ });
   showView("dashboard");
 }
 
