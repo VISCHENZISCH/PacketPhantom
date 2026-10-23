@@ -24,6 +24,10 @@ exports/
 *.pcapng
 *.mmdb
 *keylog*.log
+# Bases d'alertes (--db) : elles peuvent contenir des identifiants capturés en clair
+*.db
+*.db-wal
+*.db-shm
 
 # IDE
 .vscode/
