@@ -412,8 +412,9 @@ kbd {
 }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
 
-/* Cartes de listes (hôtes, alertes, destinations) : coins carrés, en-tête noir sur toute la largeur. */
-.card.list-card { padding-top: 0; overflow: hidden; border-radius: 0; }
+/* Cartes de listes (hôtes, alertes, destinations) : en-tête noir sur toute la largeur,
+   arrondi par la carte (overflow: hidden). */
+.card.list-card { padding-top: 0; overflow: hidden; }
 .list-card > .card-head {
   margin: 0 -22px 14px;
   padding: 14px 22px;
