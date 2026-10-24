@@ -1,7 +1,14 @@
 """Agrégats calculés une seule fois pour toutes les vues (TUI, API, tableau de bord web)."""
 from __future__ import annotations
 
+import contextlib
+import os
+import platform
+import sys
+import threading
+import time
 from collections import Counter
+from dataclasses import asdict
 
 from . import __version__
 from .engine import Engine
@@ -120,4 +127,79 @@ def geo_traffic(engine: Engine, geo: GeoResolver, after: int | None) -> dict:
             "from": _point(a), "to": _point(b), "packets": n, "bytes": size, "proto": protos.most_common(1)[0][0],
             "direction": "out" if a is home else "in" if b is home else "transit",
         } for (a, b), (n, size, protos) in top],
+    }
+
+
+# ---------------------------------------------------------------- monitoring
+
+PROCESS_START = time.time()   # importé au démarrage du programme : approximation du lancement
+
+
+def _memory() -> tuple[int | None, str]:
+    """Mémoire du processus : résidente actuelle (Linux), sinon pic (autres Unix), sinon inconnue."""
+    try:
+        with open("/proc/self/statm", encoding="ascii") as handle:
+            return int(handle.read().split()[1]) * os.sysconf("SC_PAGE_SIZE"), "résidente"
+    except (OSError, ValueError, IndexError, AttributeError):
+        pass
+    try:
+        import resource
+    except ImportError:   # Windows
+        return None, ""
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return (peak if sys.platform == "darwin" else peak * 1024), "pic"
+
+
+def _file_size(path) -> int:
+    total = 0
+    for suffix in ("", "-wal", "-shm"):
+        with contextlib.suppress(OSError):   # -wal et -shm n'existent pas toujours
+            total += os.path.getsize(f"{path}{suffix}")
+    return total
+
+
+def monitor(engine: Engine, geo: GeoResolver, streams: int = 0) -> dict:
+    """Santé du capteur : tampons et files, composants, processus."""
+    base = status(engine, geo)
+    cfg, store, rules = engine.cfg, engine.store, engine.rules
+    with engine.lock:
+        pipeline = [
+            # (clé, libellé, occupation, capacité, rotation) : une structure en rotation remplace ses plus
+            # anciens éléments quand elle est pleine ; seule la file d'entrée perd des paquets.
+            ("queue", "File d'analyse", engine.backlog, cfg.queue_size, False),
+            ("buffer", "Paquets en mémoire", len(engine.ring), cfg.buffer, True),
+            ("flows", "Flux suivis", len(engine.flows), cfg.max_flows, True),
+            ("hosts", "Hôtes inventoriés", len(engine.hosts), cfg.max_hosts, True),
+            ("alerts", "Alertes en mémoire", len(engine.alerts), cfg.max_alerts, True),
+        ]
+        exceptions = list(rules.allow)
+    memory, memory_kind = _memory()
+    cpu = os.times()
+    return {
+        **base,
+        "pipeline": [{"key": k, "label": label, "used": used, "capacity": cap, "rotating": rot}
+                     for k, label, used, cap, rot in pipeline],
+        "components": {
+            "store": {
+                "enabled": store is not None, "path": str(store.path) if store else None,
+                "size": _file_size(store.path) if store else 0, "error": store.error if store else None,
+                "dropped": store.dropped if store else 0,
+                "retention_days": store.retention / 86_400 if store else None,
+            },
+            "geo": {"mode": geo.mode, "note": geo.note, "home": geo.home is not None},
+            "keylog": {"enabled": engine.keylog is not None},
+            "rules": {
+                "disabled": sorted(rules.disabled),
+                "exceptions": len(exceptions),
+                "exceptions_file": sum(e.from_file for e in exceptions),
+                "thresholds": asdict(rules.thresholds),
+            },
+            "streams": streams,
+        },
+        "process": {
+            "pid": os.getpid(), "uptime": round(time.time() - PROCESS_START, 1),
+            "cpu_seconds": round(cpu.user + cpu.system, 2), "memory": memory, "memory_kind": memory_kind,
+            "threads": threading.active_count(), "python": platform.python_version(),
+            "platform": platform.system(),
+        },
     }

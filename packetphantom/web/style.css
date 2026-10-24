@@ -509,6 +509,8 @@ kbd {
   transition: background 0.15s;
 }
 .row:hover { background: var(--hover); }
+.row.inert { cursor: default; }
+.row.inert:hover { background: none; }
 .row-main { display: flex; flex: 1; flex-direction: column; gap: 5px; min-width: 0; }
 .row-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .row-title { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
@@ -650,6 +652,48 @@ kbd {
 .swatch.dir-in { background: var(--low); }
 .swatch.dir-transit { background: var(--med); }
 .swatch.dir-home { background: var(--good); }
+
+/* ------------------------------------------------------------------ monitoring */
+
+.monitor-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--gap); align-items: start; }
+.mon-tile { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mon-tile strong { overflow: hidden; font-size: clamp(20px, 1.6vw, 26px); font-weight: 600; letter-spacing: -0.02em; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mon-tile small { min-height: 20px; color: var(--muted); font-size: 12px; }
+.chart-card { grid-column: span 3; }
+.mon-pipeline, .mon-components, .mon-process { grid-column: span 2; }
+.mon-process .kv { margin: 0; padding: 0; background: none; }
+
+.chart { position: relative; height: 190px; touch-action: none; }
+.chart svg { display: block; overflow: visible; }
+.chart-grid { stroke: var(--line); stroke-width: 1; }
+.chart-tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-value { fill: var(--fg); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.chart-line { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-area { fill: var(--primary); fill-opacity: 0.1; }
+.chart-dot { fill: var(--primary); stroke: var(--surface); stroke-width: 2; }
+.chart-cross { stroke: var(--muted); stroke-width: 1; }
+.chart-tip {
+  position: absolute;
+  top: 0;
+  display: grid;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--pop-shadow);
+  font-size: 12px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.chart-tip b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.chart-tip span { color: var(--muted); }
+
+.status.level { display: inline-flex; align-items: center; gap: 5px; }
+.status.level .icon { width: 12px; height: 12px; }
+.meter.warn > span { background: var(--med); }
+.meter.crit > span { background: var(--crit); }
 
 /* ------------------------------------------------------------------ tableaux */
 
@@ -855,6 +899,10 @@ pre.server { border-left: 4px solid var(--server); }
 
 @media (max-width: 1280px) {
   .globe-grid { grid-template-columns: minmax(0, 1fr); }
+  .mon-tile { grid-column: span 2; }
+  .chart-card { grid-column: span 6; }
+  .mon-pipeline, .mon-components { grid-column: span 3; }
+  .mon-process { grid-column: span 6; }
   .dash-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas: "k1 k2" "k3 k4" "tr tr" "rm ho" "al al" "ga ti";
@@ -878,6 +926,7 @@ pre.server { border-left: 4px solid var(--server); }
 }
 
 @media (max-width: 640px) {
+  .mon-tile, .mon-pipeline, .mon-components { grid-column: span 6; }
   h1 { font-size: 28px; }
   .dash-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "k1" "k2" "k3" "k4" "tr" "rm" "ho" "al" "ga" "ti"; }
   .source div { display: none; }

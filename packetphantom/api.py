@@ -125,6 +125,11 @@ def geo_traffic(api: Api, req: Request) -> dict:
     return analytics.geo_traffic(api.engine, api.geo, after if after >= 0 else None)
 
 
+@route("GET", "/api/monitor")
+def monitor(api: Api, req: Request) -> dict:
+    return analytics.monitor(api.engine, api.geo, streams=api.streams)
+
+
 @route("GET", "/api/interfaces")
 def interfaces(api: Api, req: Request) -> dict:
     return {"interfaces": list_interfaces()}
@@ -340,6 +345,7 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_header(key, value)
         self.end_headers()
         api, cursor = self.api, self.api.engine.last_alert_id
+        api.stream_opened()
         try:
             while not api.stopping.is_set():
                 for alert in api.engine.alerts_after(cursor):
@@ -349,6 +355,8 @@ class _Handler(BaseHTTPRequestHandler):
                 api.stopping.wait(1.0)
         except (BrokenPipeError, ConnectionResetError):
             pass
+        finally:
+            api.stream_closed()
 
     def _event(self, name: str, payload: dict) -> None:
         self.wfile.write(f"event: {name}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n".encode())
@@ -362,9 +370,19 @@ class Api:
         self.geo = geo
         self.token = token or secrets.token_urlsafe(18)
         self.stopping = threading.Event()
+        self.streams = 0                  # connexions temps réel (SSE) ouvertes
+        self._streams_lock = threading.Lock()
         self._server = ThreadingHTTPServer((host, port), _Handler)
         self._server.daemon_threads = True
         self._server.api = self  # type: ignore[attr-defined]
+
+    def stream_opened(self) -> None:
+        with self._streams_lock:
+            self.streams += 1
+
+    def stream_closed(self) -> None:
+        with self._streams_lock:
+            self.streams -= 1
 
     @property
     def address(self) -> tuple[str, int]:

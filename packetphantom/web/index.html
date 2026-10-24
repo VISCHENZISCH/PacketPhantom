@@ -40,7 +40,7 @@
         <p class="nav-title">MENU</p>
         <button class="nav-item active" type="button" data-view="dashboard"><i data-icon="grid"></i>Tableau de bord</button>
         <button class="nav-item" type="button" data-view="globe"><i data-icon="globe"></i>Globe</button>
-        <button class="nav-item" type="button" data-view="packets"><i data-icon="list"></i>Paquets</button>
+        <button class="nav-item" type="button" data-view="monitor"><i data-icon="pulse"></i>Monitoring</button>
         <button class="nav-item" type="button" data-view="flows"><i data-icon="flow"></i>Flux</button>
         <button class="nav-item" type="button" data-view="hosts"><i data-icon="server"></i>Hôtes</button>
         <button class="nav-item" type="button" data-view="alerts"><i data-icon="bell"></i>Alertes<span id="nav-badge" class="nav-badge" hidden></span></button>
@@ -67,7 +67,7 @@
         <label class="search">
           <i data-icon="search"></i>
           <input id="filter" type="search" spellcheck="false" autocomplete="off"
-                 placeholder="Filtrer les paquets…  tls and port 443">
+                 placeholder="Rechercher dans la page…  10.0.0.5, github.com">
           <kbd>/</kbd>
         </label>
         <div class="top-actions">
@@ -95,7 +95,7 @@
 
         <div class="dash-grid">
           <article class="card kpi kpi-hero" data-kpi="packets">
-            <header><h3>Paquets</h3><button class="round-btn" type="button" data-view="packets" aria-label="Voir les paquets"><i data-icon="arrow"></i></button></header>
+            <header><h3>Paquets</h3><button class="round-btn" type="button" data-view="monitor" aria-label="Voir le monitoring"><i data-icon="arrow"></i></button></header>
             <strong class="kpi-value">-</strong>
             <p class="kpi-trend"><span class="chip"></span><span class="trend-text"></span></p>
           </article>
@@ -203,6 +203,48 @@
               <ul id="globe-places" class="item-list"></ul>
             </article>
           </div>
+        </div>
+      </section>
+
+      <section id="page-monitor" class="page" hidden>
+        <div class="page-head">
+          <div>
+            <h1>Monitoring</h1>
+            <p>Santé du capteur : capture, file d'analyse, mémoire et stockage.</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-outline" type="button" data-action="export">Exporter PCAP</button>
+          </div>
+        </div>
+        <div class="monitor-grid">
+          <article class="card mon-tile"><span class="muted">Capture</span><strong id="mon-state">-</strong><small id="mon-state-meta"></small></article>
+          <article class="card mon-tile"><span class="muted">Paquets / s</span><strong id="mon-pps">-</strong><small id="mon-pps-meta"></small></article>
+          <article class="card mon-tile"><span class="muted">Débit</span><strong id="mon-bps">-</strong><small id="mon-bps-meta"></small></article>
+          <article class="card mon-tile"><span class="muted">Paquets perdus</span><strong id="mon-dropped">-</strong><small id="mon-dropped-meta"></small></article>
+          <article class="card mon-tile"><span class="muted">File d'analyse</span><strong id="mon-queue">-</strong><small id="mon-queue-meta"></small></article>
+          <article class="card mon-tile"><span class="muted">Mémoire</span><strong id="mon-memory">-</strong><small id="mon-memory-meta"></small></article>
+
+          <article class="card chart-card">
+            <header class="card-head"><h3>Débit</h3><span class="muted">2 dernières minutes</span></header>
+            <div id="chart-bps" class="chart"></div>
+          </article>
+          <article class="card chart-card">
+            <header class="card-head"><h3>Paquets par seconde</h3><span class="muted">2 dernières minutes</span></header>
+            <div id="chart-pps" class="chart"></div>
+          </article>
+
+          <article class="card list-card mon-pipeline">
+            <header class="card-head"><h3>Tampons et files</h3></header>
+            <ul id="mon-pipeline" class="item-list"></ul>
+          </article>
+          <article class="card list-card mon-components">
+            <header class="card-head"><h3>Composants</h3></header>
+            <ul id="mon-components" class="item-list"></ul>
+          </article>
+          <article class="card list-card mon-process">
+            <header class="card-head"><h3>Processus</h3></header>
+            <dl id="mon-process" class="kv"></dl>
+          </article>
         </div>
       </section>
 

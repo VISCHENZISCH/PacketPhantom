@@ -117,6 +117,8 @@ const ICONS = {
   down: "M12 5v14m0 0-6-6m6 6 6-6",
   globe: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20",
   spin: "M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5",
+  pulse: "M3 12h4l3-8 4 16 3-8h4",
+  cpu: "M9 3v2M15 3v2M9 19v2M15 19v2M3 9h2M3 15h2M19 9h2M19 15h2M6 5h12v14H6zM9 9h6v6H9z",
 };
 
 function icon(name, solid = false) {
@@ -169,7 +171,8 @@ async function api(path, params = {}, options = {}) {
 
 const state = {
   view: "dashboard",
-  filter: "",
+  search: "",       // recherche de la barre du haut : filtre les lignes de la page affichée
+  lastData: null,   // dernière réponse de la vue en liste (nouvel affichage immédiat pendant la frappe)
   sort: { flows: "last", hosts: "bytes" },
   status: null,
   statusAt: 0,
@@ -464,7 +467,7 @@ function renderTalkers(talkers) {
       title: t.name || t.ip,
       trailing: h("span", { class: "row-value" }, fmt.bytes(t.bytes)),
       details: [meter(t.bytes / top), t.name ? meta(t.ip) : null],
-      onClick: () => pivot(`ip.addr == ${t.ip}`),
+      onClick: () => searchIn("flows", t.ip),
     }))
     : [row({ lead: h("span", { class: "tile hue-4" }, icon("server")), title: "Aucun hôte pour l'instant",
       details: meta("Les hôtes apparaissent dès les premiers paquets.") })]));
@@ -511,9 +514,27 @@ const geoCell = (geo) => (geo
 const sorter = (kind) => ({ value: state.sort[kind], set: (key) => { state.sort[kind] = key; refresh(); } });
 const STATE_OK = new Set(["ESTABLISHED", "CLOSED"]);
 
-/* columns : [{ label, cell(row) → texte|Node, cls?, sort? }] ; onClick facultatif ; rowClass(row) → classe. */
+/* Une adresse IPv4 complète ne retient que cette adresse (10.0.0.5 ≠ 10.0.0.50, port toléré) ;
+   tout autre texte est cherché tel quel, sans tenir compte de la casse. */
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+function matches(text, query) {
+  if (IPV4.test(query)) return text.split(/[\s,]+/).some((token) => token === query || token.startsWith(`${query}:`));
+  return text.toLowerCase().includes(query.toLowerCase());
+}
+
+/* columns : [{ label, cell(row) → texte|Node, cls?, sort? }] ; onClick facultatif ; rowClass(row) → classe.
+   Les lignes sont filtrées par la recherche de la barre du haut. */
 function table(columns, rows, onClick, sortState, rowClass = () => "") {
   if (!rows.length) return h("div", { class: "empty" }, "Aucune donnée pour l'instant.");
+  const query = state.search;
+  const body = [];
+  for (const row of rows) {
+    const cells = columns.map((col) => h("td", { class: col.cls }, col.cell(row) ?? ""));
+    if (query && !cells.some((td) => matches(td.textContent, query))) continue;
+    body.push(h("tr", { class: [rowClass(row), !onClick && "inert"].filter(Boolean).join(" "),
+      onclick: onClick ? () => onClick(row) : undefined }, cells));
+  }
+  if (!body.length) return h("div", { class: "empty" }, `Aucun résultat pour « ${query} ».`);
   const head = columns.map((col) => {
     const sorted = col.sort && sortState?.value === col.sort;
     const arrow = sorted ? icon("down") : null;
@@ -523,9 +544,6 @@ function table(columns, rows, onClick, sortState, rowClass = () => "") {
       onclick: col.sort ? () => sortState.set(col.sort) : undefined,
     }, col.label, arrow);
   });
-  const body = rows.map((row) => h("tr", { class: [rowClass(row), !onClick && "inert"].filter(Boolean).join(" "),
-    onclick: onClick ? () => onClick(row) : undefined },
-    columns.map((col) => h("td", { class: col.cls }, col.cell(row) ?? ""))));
   return h("table", {}, h("thead", {}, h("tr", {}, head)), h("tbody", {}, body));
 }
 
@@ -549,16 +567,6 @@ const COLUMNS = {
     { label: "", cell: (e) => (e.origin === "api"
       ? h("button", { class: "round-btn close-btn", type: "button", "aria-label": "Supprimer l'exception", onclick: () => removeAllow(e) }, icon("trash"))
       : "") },
-  ],
-  packets: [
-    { label: "", cell: (p) => (p.severity === null ? "" : h("span", { class: `mark sev-${p.severity}` })) },
-    { label: "No.", cell: (p) => p.id, cls: "num mono" },
-    { label: "Heure", cell: (p) => fmt.time(p.time), cls: "mono" },
-    { label: "Source", cell: (p) => p.src, cls: "mono" },
-    { label: "Destination", cell: (p) => p.dst, cls: "mono" },
-    { label: "Proto", cell: (p) => protoCell(p.proto) },
-    { label: "Long.", cell: (p) => p.length, cls: "num" },
-    { label: "Info", cell: (p) => p.info },
   ],
   flows: [
     { label: "#", cell: (f) => f.id, cls: "num mono" },
@@ -590,12 +598,7 @@ const COLUMNS = {
 const VIEWS = {
   dashboard: { title: "Tableau de bord", load: refreshDashboard },
   globe: { title: "Globe", load: async () => {} },   // interrogé chaque seconde par pollGlobe
-  packets: {
-    title: "Paquets",
-    subtitle: () => (state.filter ? `Filtre : ${state.filter}` : "Derniers paquets capturés - filtrez depuis la barre de recherche."),
-    load: () => api("/api/packets", { filter: state.filter, limit: 1000 }),
-    render: (d) => table(COLUMNS.packets, d.items.reverse(), (p) => openPacket(p.id)),
-  },
+  monitor: { title: "Monitoring", load: refreshMonitor },
   flows: {
     title: "Flux",
     subtitle: () => "Conversations bidirectionnelles - cliquez pour suivre l'échange (déchiffré si possible).",
@@ -606,13 +609,13 @@ const VIEWS = {
     title: "Hôtes",
     subtitle: () => "Inventaire passif : système, noms, services, localisation.",
     load: () => api("/api/hosts", { sort: state.sort.hosts, limit: 1000 }),
-    render: (d) => table(COLUMNS.hosts, d.items, (x) => pivot(`ip.addr == ${x.ip}`), sorter("hosts")),
+    render: (d) => table(COLUMNS.hosts, d.items, (x) => searchIn("flows", x.ip), sorter("hosts")),
   },
   alerts: {
     title: "Alertes",
     subtitle: () => "Détections en temps réel, de la plus récente à la plus ancienne.",
     load: () => api("/api/alerts", { limit: 2000 }),
-    render: (d) => table(COLUMNS.alerts, d.items.reverse(), openAlert, null, (a) => (a.acked ? "acked" : "")),
+    render: (d) => table(COLUMNS.alerts, [...d.items].reverse(), openAlert, null, (a) => (a.acked ? "acked" : "")),
   },
   allowlist: {
     title: "Exceptions",
@@ -653,37 +656,40 @@ async function refresh() {
   try {
     const data = await view.load();
     if (view.render) {
-      const container = $("#view");
-      const scroll = container.scrollTop;
-      container.replaceChildren(view.render(data));
-      container.scrollTop = scroll;
-      $("#list-subtitle").textContent = view.subtitle();
+      state.lastData = data;
+      renderList();
     }
-    $(".search").classList.remove("bad");
     condition("refresh", "", "");
   } catch (error) {
-    if (state.view === "packets") {
-      $(".search").classList.add("bad");
-      $("#list-subtitle").textContent = error.message;
-    } else {
-      condition("refresh", "Actualisation impossible", error.message);
-    }
+    condition("refresh", "Actualisation impossible", error.message);
   } finally {
     state.busy = false;
   }
 }
 
+/* Vue en liste : nouvel affichage depuis la dernière réponse (refresh ou frappe dans la recherche). */
+function renderList() {
+  const view = VIEWS[state.view];
+  if (!view.render || !state.lastData) return;
+  const container = $("#view");
+  const scroll = container.scrollTop;
+  container.replaceChildren(view.render(state.lastData));
+  container.scrollTop = scroll;
+  $("#list-subtitle").textContent = view.subtitle() + (state.search ? `  ·  recherche « ${state.search} »` : "");
+}
+
+const PAGES = { dashboard: "#page-dashboard", globe: "#page-globe", monitor: "#page-monitor" };
+
 function showView(name) {
   state.view = name;
-  const isDashboard = name === "dashboard";
-  const isGlobe = name === "globe";
+  state.lastData = null;
+  const isList = !(name in PAGES);
   $$(".nav-item[data-view]").forEach((item) => item.classList.toggle("active", item.dataset.view === name));
-  $("#page-dashboard").hidden = !isDashboard;
-  $("#page-globe").hidden = !isGlobe;
-  $("#page-list").hidden = isDashboard || isGlobe;
-  if (isGlobe) startGlobe();
+  for (const [page, selector] of Object.entries(PAGES)) $(selector).hidden = page !== name;
+  $("#page-list").hidden = !isList;
+  if (name === "globe") startGlobe();
   else stopGlobe();
-  if (!isDashboard && !isGlobe) {
+  if (isList) {
     $("#list-title").textContent = VIEWS[name].title;
     $("#list-subtitle").textContent = VIEWS[name].subtitle();
     $("#view").replaceChildren(h("div", { class: "empty" }, "Chargement…"));
@@ -691,10 +697,11 @@ function showView(name) {
   refresh();
 }
 
-function pivot(filter) {
-  state.filter = filter;
-  $("#filter").value = filter;
-  showView("packets");
+/* Ouvre une vue en liste filtrée par un texte (ex. les flux d'un hôte). */
+function searchIn(view, text) {
+  state.search = text;
+  $("#filter").value = text;
+  showView(view);
 }
 
 // ================================================================== fenêtres de détail
@@ -810,8 +817,9 @@ async function openConversation(flowId) {
       h("div", { class: "stream" }, c.chunks.length
         ? c.chunks.map((x) => h("pre", { class: x.client ? "client" : "server" }, x.text))
         : h("div", { class: "empty" }, "Aucune donnée applicative dans les paquets conservés.")),
-      h("button", { class: "btn btn-outline", type: "button", onclick: () => { $("#modal").close(); pivot(`flow == ${f.id}`); } },
-        "Voir les paquets de ce flux"));
+      h("button", { class: "btn btn-outline", type: "button",
+        onclick: () => location.assign(apiUrl("/api/export.pcap", { token, filter: `flow == ${f.id}` })) },
+      icon("download"), "Exporter ce flux (PCAP)"));
   } catch (error) {
     failure(error);
   }
@@ -821,9 +829,9 @@ function openHelp() {
   const rows = (pairs) => h("table", {}, h("tbody", {}, pairs.map(([k, v]) => h("tr", {}, h("td", { class: "mono" }, k), h("td", {}, v)))));
   openModal("Aide & API", "help",
     h("div", { class: "help-grid" },
-      h("section", {}, h("h3", {}, "Filtre d'affichage"), rows([
-        ["tls or dns", "protocoles"], ["ip.addr == 10.0.0.0/8", "adresse ou réseau"], ["port 443", "port"],
-        ['domain contains "google"', "SNI / Host / DNS"], ["alert >= high", "paquets en alerte"], ["flow == 12", "une conversation"],
+      h("section", {}, h("h3", {}, "Recherche (barre du haut)"), rows([
+        ["github.com", "filtre les lignes de Flux, Hôtes, Alertes, Exceptions"], ["10.0.0.5", "cette adresse seulement (pas 10.0.0.50)"],
+        ["Entrée", "depuis une autre page : ouvre les Flux filtrés"], ["/", "place le curseur dans la recherche"],
       ])),
       h("section", {}, h("h3", {}, "API REST (jeton Bearer)"), rows([
         ["GET /api/status", "état et compteurs"], ["GET /api/events", "flux SSE temps réel"], ["GET /api/packets?filter=", "paquets"],
@@ -831,6 +839,178 @@ function openHelp() {
         ["POST /api/capture", "démarrer / arrêter"], ["GET /api/alerts/history", "historique filtré"],
         ["POST /api/alerts/ack", "acquitter"], ["GET|POST /api/allowlist", "exceptions"],
       ]))));
+}
+
+// ================================================================== monitoring
+
+/* Courbe d'une seule série sur 2 minutes (1 point/s) : trait 2 px, aire à 10 %, grille horizontale fine,
+   valeur courante en bout de courbe. Au survol, une ligne verticale suit le pointeur et une info-bulle
+   donne la valeur. Débit et paquets/s ont chacun leur graphique : jamais deux échelles sur un même axe. */
+const CHART = { height: 190, top: 14, right: 78, bottom: 26, left: 74 };
+
+function niceMax(value) {
+  if (value <= 0) return 1;
+  const power = 10 ** Math.floor(Math.log10(value));
+  return [1, 2, 2.5, 5, 10].map((m) => m * power).find((m) => m >= value);
+}
+
+function drawChart(el, values, format, label) {
+  el.chart = { values, format, label };
+  const width = Math.max(280, el.clientWidth);
+  const { height, top, right, bottom, left } = CHART;
+  const plotW = width - left - right;
+  const plotH = height - top - bottom;
+  const max = niceMax(Math.max(0, ...values));
+  const last = values.length - 1;
+  const x = (i) => left + (last > 0 ? (i / last) * plotW : plotW);
+  const y = (v) => top + plotH - (v / max) * plotH;
+  el.chart.geometry = { x, y, left, plotW, last };
+
+  const ticks = [0, 0.5, 1].map((k) => svg("g", {},
+    svg("line", { class: "chart-grid", x1: left, x2: left + plotW, y1: y(max * k), y2: y(max * k) }),
+    svg("text", { class: "chart-tick", x: left - 10, y: y(max * k) + 4, "text-anchor": "end" }, format(max * k))));
+  const points = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const axis = [[0, "-2 min", "start"], [last / 2, "-1 min", "middle"], [last, "maintenant", "end"]].map(([i, text, anchor]) =>
+    svg("text", { class: "chart-tick", x: x(i), y: height - 6, "text-anchor": anchor }, text));
+  const current = values[last] ?? 0;
+  el.replaceChildren(
+    svg("svg", { viewBox: `0 0 ${width} ${height}`, width, height, role: "img", "aria-label": `${label} : ${format(current)} actuellement` },
+      ...ticks, ...axis,
+      svg("polygon", { class: "chart-area", points: `${x(0)},${y(0)} ${points} ${x(last)},${y(0)}` }),
+      svg("polyline", { class: "chart-line", points }),
+      svg("circle", { class: "chart-dot", cx: x(last), cy: y(current), r: 4 }),
+      svg("text", { class: "chart-value", x: x(last) + 10, y: y(current) + 4 }, format(current)),
+      svg("line", { class: "chart-cross", y1: top, y2: top + plotH, visibility: "hidden" }),
+      svg("circle", { class: "chart-dot chart-hover", r: 4, visibility: "hidden" })),
+    h("div", { class: "chart-tip", hidden: "" }));
+  if (el.hoverX !== undefined) showChartHover(el);
+}
+
+function showChartHover(el) {
+  const { values, format, geometry } = el.chart;
+  const tip = $(".chart-tip", el);
+  const cross = $(".chart-cross", el);
+  const dot = $(".chart-hover", el);
+  if (el.hoverX === undefined || !values.length) {
+    tip.hidden = true;
+    cross.setAttribute("visibility", "hidden");
+    dot.setAttribute("visibility", "hidden");
+    return;
+  }
+  const { x, y, left, plotW, last } = geometry;
+  const i = Math.round(Math.min(1, Math.max(0, (el.hoverX - left) / plotW)) * last);
+  cross.setAttribute("x1", x(i));
+  cross.setAttribute("x2", x(i));
+  cross.setAttribute("visibility", "visible");
+  dot.setAttribute("cx", x(i));
+  dot.setAttribute("cy", y(values[i]));
+  dot.setAttribute("visibility", "visible");
+  const ago = last - i;
+  tip.replaceChildren(h("b", {}, format(values[i])), h("span", {}, ago ? `il y a ${ago} s` : "maintenant"));
+  tip.style.left = `${x(i)}px`;
+  tip.hidden = false;
+}
+
+function bindChart(el) {
+  el.addEventListener("pointermove", (event) => {
+    el.hoverX = event.clientX - el.getBoundingClientRect().left;
+    showChartHover(el);
+  });
+  el.addEventListener("pointerleave", () => {
+    el.hoverX = undefined;
+    showChartHover(el);
+  });
+  new ResizeObserver(() => el.chart && drawChart(el, el.chart.values, el.chart.format, el.chart.label)).observe(el);
+}
+
+/* Pastille d'état : une icône et un libellé accompagnent toujours la couleur. */
+const LEVELS = {
+  ok: ["ok-pill", "check"], warn: ["sev-2", "warn"], crit: ["sev-4", "warn"], off: ["sev-0", "info"],
+};
+const levelPill = (level, label) => h("span", { class: `status level ${LEVELS[level][0]}` }, icon(LEVELS[level][1]), label);
+
+function setTile(id, value, meta = "", level = null) {
+  $(`#mon-${id}`).textContent = value;
+  const metaEl = $(`#mon-${id}-meta`);
+  metaEl.replaceChildren(...[level ? levelPill(level, meta) : meta].filter(Boolean));
+}
+
+const percentOf = (used, capacity) => (capacity ? Math.min(100, Math.round((used / capacity) * 100)) : 0);
+
+function pipelineRow(item) {
+  const pct = percentOf(item.used, item.capacity);
+  let level = null;
+  let note;
+  if (item.rotating) {
+    note = pct >= 100 ? "Plein : les plus anciens sont remplacés (normal)" : `${pct} % utilisé`;
+  } else {
+    level = pct >= 90 ? "crit" : pct >= 50 ? "warn" : "ok";
+    note = { crit: "Saturée : des paquets sont perdus", warn: "Chargée", ok: "Fluide" }[level];
+  }
+  const bar = meter(item.used / (item.capacity || 1));
+  if (level && level !== "ok") bar.classList.add(level);
+  return row({
+    lead: h("span", { class: "tile hue-3" }, icon(item.rotating ? "list" : "flow")),
+    title: item.label,
+    trailing: h("span", { class: "row-value" }, `${fmt.count(item.used)} / ${fmt.count(item.capacity)}`),
+    details: [bar, level ? h("span", { class: "row-meta" }, levelPill(level, note)) : meta(note)],
+    attrs: { class: "row inert" },
+  });
+}
+
+function componentRow(iconName, title, level, label, detail) {
+  return row({
+    lead: h("span", { class: "tile hue-3" }, icon(iconName)),
+    title, trailing: levelPill(level, label), details: meta(detail), attrs: { class: "row inert" },
+  });
+}
+
+async function refreshMonitor() {
+  const m = await api("/api/monitor");
+  const { store, geo: geoInfo, keylog, rules, streams } = m.components;
+  const queue = m.pipeline.find((p) => p.key === "queue");
+  const queuePct = percentOf(queue.used, queue.capacity);
+  const modeLabel = { live: "Capture en direct", file: "Lecture de fichier", done: "Fichier analysé", idle: "Arrêtée" }[m.mode] ?? m.mode;
+
+  setTile("state", modeLabel, m.error ? "Erreur" : m.mode === "live" ? "Active" : "Inactive",
+    m.error ? "crit" : m.mode === "live" || m.mode === "file" ? "ok" : "off");
+  setTile("pps", fmt.count(last(m.pps)), `max ${fmt.count(Math.max(0, ...m.pps))} sur 2 min`);
+  setTile("bps", fmt.bits(last(m.bps)), `max ${fmt.bits(Math.max(0, ...m.bps))} sur 2 min`);
+  setTile("dropped", fmt.count(m.dropped), m.dropped ? "File saturée" : "Aucune perte", m.dropped ? "warn" : "ok");
+  setTile("queue", `${queuePct} %`, `${fmt.count(queue.used)} en attente`,
+    queuePct >= 90 ? "crit" : queuePct >= 50 ? "warn" : "ok");
+  setTile("memory", m.process.memory === null ? "-" : fmt.bytes(m.process.memory),
+    m.process.memory === null ? "non mesurée sur ce système" : `${m.process.memory_kind} · ${m.process.threads} threads`);
+
+  drawChart($("#chart-bps"), m.bps, fmt.bits, "Débit");
+  drawChart($("#chart-pps"), m.pps, (v) => `${fmt.count(Math.round(v))}/s`, "Paquets par seconde");
+
+  $("#mon-pipeline").replaceChildren(...m.pipeline.map(pipelineRow));
+
+  const geoLevel = geoInfo.mode === "off" ? "off" : geoInfo.home ? "ok" : "warn";
+  $("#mon-components").replaceChildren(
+    componentRow("radar", "Capture", m.error ? "crit" : m.mode === "live" ? "ok" : "off", m.error ? "Erreur" : modeLabel,
+      m.error || `${m.source || "Interface par défaut"} · BPF ${m.bpf || "aucun"}`),
+    store.enabled
+      ? componentRow("list", "Base des alertes", store.error ? "crit" : store.dropped ? "warn" : "ok",
+        store.error ? "Erreur" : store.dropped ? "Pertes" : "Active",
+        store.error || `${store.path} · ${fmt.bytes(store.size)} · rétention ${store.retention_days ? `${store.retention_days} j` : "illimitée"}`)
+      : componentRow("list", "Base des alertes", "off", "Désactivée", "Ajoutez --db FICHIER pour conserver les alertes"),
+    componentRow("globe", "Géolocalisation", geoLevel, { off: "Désactivée", warn: "Incomplète", ok: "Active" }[geoLevel],
+      geoInfo.mode !== "off" && !geoInfo.home ? `${geoInfo.note} · position du réseau inconnue (--home)` : geoInfo.note),
+    componentRow("shield", "Déchiffrement TLS", keylog.enabled ? "ok" : "off", keylog.enabled ? "Actif" : "Désactivé",
+      keylog.enabled ? "Fichier de clés chargé" : "Ajoutez --tls-keylog FICHIER"),
+    componentRow("mute", "Règles de détection", "ok", "Actives",
+      `${rules.disabled.length} règle(s) désactivée(s) · ${rules.exceptions} exception(s)`),
+    componentRow("wifi", "Temps réel", streams ? "ok" : "off", `${streams} connexion${streams > 1 ? "s" : ""}`,
+      "Tableaux de bord abonnés aux événements"));
+
+  const p = m.process;
+  $("#mon-process").replaceChildren(...[
+    ["Version", `PacketPhantom ${m.version}`], ["Python", `${p.python} · ${p.platform}`], ["PID", String(p.pid)],
+    ["En service depuis", fmt.duration(p.uptime)], ["Temps processeur", `${p.cpu_seconds.toFixed(1)} s`],
+    ["Threads", String(p.threads)], ["Erreurs d'analyse", fmt.count(m.analysis_errors)],
+  ].flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)]));
 }
 
 // ================================================================== globe
@@ -988,7 +1168,7 @@ function toggleFreeze() {
 
 const ACTIONS = {
   capture: toggleCapture,
-  export: () => location.assign(apiUrl("/api/export.pcap", { token, filter: state.view === "packets" ? state.filter : "" })),
+  export: () => location.assign(apiUrl("/api/export.pcap", { token })),
   theme: () => { window.ppTheme.toggle(); renderThemeControls(); geo.globe?.readColors(); },
   "globe-spin": toggleGlobeSpin,
   "globe-clear": () => { geo.globe?.clear(); geo.ticks = []; renderGlobeSide(); },
@@ -1034,8 +1214,12 @@ function init() {
     if (target.dataset.view) showView(target.dataset.view);
     else ACTIONS[target.dataset.action]?.();
   });
+  $("#filter").addEventListener("input", (event) => {
+    state.search = event.target.value.trim();
+    renderList();
+  });
   $("#filter").addEventListener("keydown", (event) => {
-    if (event.key === "Enter") pivot(event.target.value.trim());
+    if (event.key === "Enter" && state.view in PAGES) showView("flows");
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "/" && document.activeElement !== $("#filter")) {
@@ -1050,6 +1234,7 @@ function init() {
   setInterval(renderUptime, 1000);
   setInterval(refresh, 2500);
   connectEvents();
+  $$(".chart").forEach(bindChart);
   api("/api/allowlist").then((d) => { state.rules = d.rules; }).catch(() => { /* descriptions facultatives */ });
   showView("dashboard");
 }
