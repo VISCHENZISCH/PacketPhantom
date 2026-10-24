@@ -116,6 +116,23 @@ def test_api_capture_errors_and_events(api):
     assert event == "event: status" and payload["packets"] == 4
 
 
+def test_api_rejects_bad_content_length_and_drops_idle_connections(api, monkeypatch):
+    import socket
+
+    from packetphantom import api as api_module
+    base, _ = api
+    host, port = base.removeprefix("http://").split(":")
+    for value in ("-1", "abc"):
+        with socket.create_connection((host, int(port)), timeout=5) as sock:
+            sock.sendall(f"POST /api/capture HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer t0ken\r\n"
+                         f"Content-Length: {value}\r\n\r\n".encode())
+            assert sock.recv(64).startswith(b"HTTP/1.1 400")
+
+    monkeypatch.setattr(api_module._Handler, "timeout", 0.3)
+    with socket.create_connection((host, int(port)), timeout=5) as sock:   # connexion ouverte, rien envoyé
+        assert sock.recv(64) == b""   # fermée par le serveur au bout du délai
+
+
 # ------------------------------------------------------------------ headless
 
 def test_headless_on_pcap_file(tmp_path, frames):

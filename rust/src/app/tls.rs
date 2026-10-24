@@ -4,7 +4,7 @@
 use md5::Md5;
 use sha2::{Digest, Sha256};
 
-use crate::fmt::{hex, is_grease, join};
+use crate::fmt::{hex, is_grease, join, text};
 use crate::packet::{App, ClientHello, Packet, ServerHello};
 use crate::reader::Reader;
 
@@ -125,7 +125,7 @@ fn client_hello(body: &[u8]) -> Option<ClientHello> {
                     ch.sni = Some(data).and_then(|mut d: Reader<'_>| {
                         let mut list = d.vec16()?;
                         list.u8()?;
-                        Some(String::from_utf8_lossy(list.vec16()?.rest()).into_owned())
+                        Some(text(list.vec16()?.rest()))
                     })
                     .unwrap_or_default();
                 }
@@ -137,7 +137,7 @@ fn client_hello(body: &[u8]) -> Option<ClientHello> {
                         let mut list = d.vec16()?;
                         let mut out = Vec::new();
                         while let Some(mut proto) = list.vec8() {
-                            out.push(String::from_utf8_lossy(proto.rest()).into_owned());
+                            out.push(text(proto.rest()));
                         }
                         Some(out)
                     })

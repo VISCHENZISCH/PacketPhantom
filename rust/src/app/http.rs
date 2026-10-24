@@ -1,5 +1,6 @@
 //! HTTP/1.x : ligne de requête ou de statut, en-têtes, corps (tolère les en-têtes tronqués).
 
+use crate::fmt::clean;
 use crate::packet::{App, HttpRequest, HttpResponse, Packet};
 
 const METHODS: [&[u8]; 9] = [
@@ -19,10 +20,10 @@ fn split_head(payload: &[u8]) -> Head<'_> {
     };
     let text = String::from_utf8_lossy(head);
     let mut lines = text.split("\r\n");
-    let first_line = lines.next().unwrap_or_default().to_string();
+    let first_line = clean(lines.next().unwrap_or_default());
     let headers = lines
         .filter_map(|line| line.split_once(':'))
-        .map(|(k, v)| (k.trim().to_ascii_lowercase(), v.trim().to_string()))
+        .map(|(k, v)| (clean(k.trim()).to_ascii_lowercase(), clean(v.trim())))
         .collect();
     Head { first_line, headers, body }
 }

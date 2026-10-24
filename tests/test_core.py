@@ -92,6 +92,27 @@ def test_dhcp():
     assert (p.proto, p.dhcp.msg_type, p.dhcp.hostname, p.dhcp.requested) == ("DHCP", "Request", "laptop", "10.0.0.7")
 
 
+ESC = "\x1b]52;c;cHduZWQ=\x07\x1b[2J"   # OSC 52 (presse-papiers) + effacement d'écran
+
+
+def test_terminal_escapes_from_network_are_neutralised(frames):
+    """Un ESC dans un nom DNS, un SNI, un en-tête ou un nom DHCP ne doit jamais atteindre le terminal de la TUI."""
+    dhcp = bytes(Ether() / IP(src="0.0.0.0", dst="255.255.255.255") / UDP(sport=68, dport=67) /
+                 BOOTP(chaddr=b"\x02\x00\x00\x00\x00\x01") / DHCP(options=[("hostname", f"pc{ESC}".encode()), "end"]))
+    decoded = [
+        parse(frames.dns_query(f"a{ESC}.example.com")).info,
+        parse(frames.tls_client_hello(f"x{ESC}.test")).domain,
+        parse(frames.tcp(f"GET /{ESC} HTTP/1.1\r\nHost: h\r\nUser-Agent: ua{ESC}\r\n\r\n".encode())).info,
+        parse(frames.tcp(f"GET / HTTP/1.1\r\nUser-Agent: ua{ESC}\r\n\r\n".encode())).http_request.header("user-agent"),
+        parse(dhcp).dhcp.hostname,
+        parse(frames.tcp(f"SSH-2.0-{ESC}xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\n".encode(),
+                         src="10.0.0.9", dst="10.0.0.5", sport=22, dport=50000)).info,
+    ]
+    for text in decoded:
+        assert "\x1b" not in text and "\x07" not in text, text
+        assert "·" in text, text
+
+
 def test_vlan_ipv6_and_icmpv6():
     p = parse(bytes(Ether() / Dot1Q(vlan=10) / IPv6(src="2001:db8::1", dst="2001:db8::2") / ICMPv6EchoRequest(id=7, seq=2)))
     assert (p.ip_version, p.src, p.proto) == (6, "2001:db8::1", "ICMPV6")

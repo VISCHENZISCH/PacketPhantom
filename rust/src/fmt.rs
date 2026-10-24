@@ -44,6 +44,16 @@ pub fn tcp_flags(flags: u8) -> String {
         .join(",")
 }
 
+/// Texte venu du réseau (noms DNS, en-têtes HTTP, SNI…) : UTF-8 approché, caractères de
+/// contrôle remplacés. Un ESC laissé tel quel serait exécuté par le terminal de la TUI.
+pub fn text(bytes: &[u8]) -> String {
+    clean(&String::from_utf8_lossy(bytes))
+}
+
+pub fn clean(s: &str) -> String {
+    s.chars().map(|c| if c.is_control() { '·' } else { c }).collect()
+}
+
 /// Première ligne du payload si elle est lisible (bannière, commande texte).
 pub fn printable_line(data: &[u8], limit: usize) -> Option<String> {
     let end = data.iter().position(|&b| b == b'\n').unwrap_or(data.len());
@@ -55,7 +65,8 @@ pub fn printable_line(data: &[u8], limit: usize) -> Option<String> {
         return None;
     }
     let printable = line.iter().filter(|&&b| (32..127).contains(&b)).count();
-    (printable * 10 >= line.len() * 9).then(|| line.iter().map(|&b| b as char).collect())
+    (printable * 10 >= line.len() * 9)
+        .then(|| line.iter().map(|&b| if (32..127).contains(&b) { b as char } else { '·' }).collect())
 }
 
 /// Valeurs GREASE (RFC 8701) : 0x0a0a, 0x1a1a … 0xfafa.

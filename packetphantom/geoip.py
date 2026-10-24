@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .hosts import classify
+from .model import printable
 
 DB_CANDIDATES = (
     "GeoLite2-City.mmdb",
@@ -47,6 +48,19 @@ class GeoInfo:
     @property
     def short(self) -> str:
         return f"{self.country} · {self.city}" if self.city else self.country
+
+
+def _coord(value) -> float | None:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def _online(item: dict, country: str | None = None, name: str | None = None) -> GeoInfo:
+    """Réponse d'ip-api (HTTP clair, donc falsifiable en chemin) : chaînes nettoyées, coordonnées numériques."""
+    def text(key: str, limit: int = 64) -> str:
+        value = item.get(key)
+        return printable(value[:limit]) if isinstance(value, str) else ""
+    return GeoInfo(country or text("countryCode", 2) or "??", name or text("country"), text("city"),
+                   text("continentCode", 2), _coord(item.get("lat")), _coord(item.get("lon")))
 
 
 LAN = GeoInfo("LAN", "Réseau local", "", "LAN")
@@ -139,8 +153,7 @@ class GeoResolver:
         except Exception:
             return
         if item.get("status") == "success" and self.home is None:
-            self.home = GeoInfo("LAN", "Réseau local", item.get("city", ""), item.get("continentCode", ""),
-                                item.get("lat"), item.get("lon"))
+            self.home = _online(item, "LAN", "Réseau local")
 
     def _worker(self) -> None:
         import requests
@@ -175,10 +188,10 @@ class GeoResolver:
                     next_call = time.time() + int(resp.headers.get("X-Ttl", "60"))
                 for item in resp.json():
                     ip = item.get("query", "")
+                    if ip not in batch:   # réponse pour une adresse non demandée : ignorée
+                        continue
                     if item.get("status") == "success":
-                        self._cache[ip] = GeoInfo(item.get("countryCode", "??"), item.get("country", ""),
-                                                  item.get("city", ""), item.get("continentCode", ""),
-                                                  item.get("lat"), item.get("lon"))
+                        self._cache[ip] = _online(item)
                     else:
                         self._cache[ip] = UNKNOWN
                     self._pending.discard(ip)

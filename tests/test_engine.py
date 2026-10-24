@@ -139,3 +139,9 @@ def test_alert_filter(engine, frames):
     pkt = feed(engine, frames.basic_auth())
     assert compile_filter("alert >= high")(pkt) and compile_filter("alert == critical")(pkt)
     assert pkt.ts >= TS
+
+
+def test_alert_text_is_terminal_safe():
+    from packetphantom.model import Alert
+    a = Alert(1, 0.0, 4, "Cat", "titre\x1b[2J", "ligne 1\nmdp=\x1b]0;x\x07", src="10.0.0.5\u202e", dst="h")
+    assert (a.title, a.detail, a.src) == ("titre·[2J", "ligne 1\nmdp=·]0;x·", "10.0.0.5·")

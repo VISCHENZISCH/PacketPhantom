@@ -27,12 +27,14 @@ from .rules import RULES, RulesError
 FLAG = re.compile(r"^/flags/([a-z]{2})\.svg$")   # drapeaux (flag-icons, MIT), servis comme les fichiers statiques
 MAX_BODY = 65_536
 MAX_ACK = 10_000
+IDLE_TIMEOUT = 30.0   # s : une connexion muette (non authentifiée) ne garde pas un thread indéfiniment
 STATIC = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/style.css": ("style.css", "text/css; charset=utf-8"),
     "/theme.js": ("theme.js", "text/javascript; charset=utf-8"),
     "/logo.svg": ("logo.svg", "image/svg+xml"),
+    "/favicon.ico": ("logo.svg", "image/svg+xml"),   # navigateurs qui ignorent <link rel="icon">
     "/globe.js": ("globe.js", "text/javascript; charset=utf-8"),
     "/land.json": ("land.json", "application/json"),
 }
@@ -257,6 +259,7 @@ def events(api: Api, req: Request) -> EventStream:
 class _Handler(BaseHTTPRequestHandler):
     server_version = "PacketPhantom"
     protocol_version = "HTTP/1.1"
+    timeout = IDLE_TIMEOUT
 
     def log_message(self, *args) -> None:
         pass
@@ -316,7 +319,10 @@ class _Handler(BaseHTTPRequestHandler):
         return secrets.compare_digest(supplied.encode(), self.api.token.encode())
 
     def _body(self) -> dict:
-        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.headers.get("Content-Length") or "0"
+        if not raw.isdigit():   # « -1 » lirait jusqu'à la fin de la connexion, « abc » ferait planter le handler
+            raise ApiError(400, "Content-Length invalide")
+        length = int(raw)
         if not length:
             return {}
         if length > MAX_BODY:
@@ -353,7 +359,7 @@ class _Handler(BaseHTTPRequestHandler):
                     self._event("alert", serialize.alert(alert))
                 self._event("status", analytics.status(api.engine, api.geo))
                 api.stopping.wait(1.0)
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, TimeoutError):   # client parti ou qui ne lit plus
             pass
         finally:
             api.stream_closed()

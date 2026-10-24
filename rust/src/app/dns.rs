@@ -2,6 +2,7 @@
 
 use std::net::{Ipv4Addr, Ipv6Addr};
 
+use crate::fmt;
 use crate::packet::{App, Dns, Packet};
 use crate::reader::{be16, Reader};
 
@@ -39,7 +40,7 @@ fn read_name(msg: &[u8], mut pos: usize) -> Option<(String, usize)> {
             continue;
         }
         let label = msg.get(pos + 1..pos + 1 + len)?;
-        labels.push(String::from_utf8_lossy(label).into_owned());
+        labels.push(fmt::text(label));
         pos += 1 + len;
     }
     None
@@ -55,7 +56,7 @@ fn rdata(msg: &[u8], rtype: u16, start: usize, data: &[u8]) -> String {
             let mut r = Reader::new(data);
             let mut parts = Vec::new();
             while let Some(mut s) = r.vec8() {
-                parts.push(String::from_utf8_lossy(s.rest()).into_owned());
+                parts.push(fmt::text(s.rest()));
             }
             parts.join(" ")
         }

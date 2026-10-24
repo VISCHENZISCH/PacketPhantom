@@ -34,7 +34,7 @@ pub fn inspect(p: &mut Packet, payload: &[u8]) -> bool {
         let Some(value) = opts.get(2..2 + usize::from(len)) else { break };
         match (code, value) {
             (53, [t, ..]) => dhcp.msg_type = type_name(*t).into(),
-            (12, name) => dhcp.hostname = String::from_utf8_lossy(name).into_owned(),
+            (12, name) => dhcp.hostname = fmt::text(name),
             (50, [a, b, c, d]) => dhcp.requested = Ipv4Addr::new(*a, *b, *c, *d).to_string(),
             _ => {}
         }

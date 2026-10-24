@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from .model import Packet
+from .model import Packet, printable
 
 MAX_VALUE = 160
 RAW_PREVIEW = 512
@@ -28,7 +28,7 @@ def _scapy(pkt: Packet):
 def _value(layer, fdesc) -> str:
     try:
         val = layer.getfieldval(fdesc.name)
-        text = "" if val is None else str(fdesc.i2repr(layer, val))
+        text = "" if val is None else printable(str(fdesc.i2repr(layer, val)))
     except Exception:
         return "?"
     return text if len(text) <= MAX_VALUE else text[:MAX_VALUE - 1] + "…"

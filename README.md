@@ -1,4 +1,6 @@
-# PacketPhantom
+<p align="center"><img src="packetphantom/web/logo.svg" width="120" alt="Logo PacketPhantom"></p>
+
+<h1 align="center">PacketPhantom</h1>
 
 Analyseur réseau temps réel : il capture le trafic, reconstruit les conversations et lève des alertes (mots de passe en clair, scans de ports, usurpation ARP, tunnels DNS…). Il s'utilise dans le terminal ou depuis un tableau de bord web.
 

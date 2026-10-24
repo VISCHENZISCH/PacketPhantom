@@ -157,7 +157,7 @@ i[data-icon] { display: inline-flex; }
   flex-direction: column;
   gap: 20px;
   min-height: 0;
-  padding: 28px 24px 24px;
+  padding: 4px 24px 24px;
   overflow-y: auto;
   overscroll-behavior: contain;
   border-radius: var(--radius-panel);
