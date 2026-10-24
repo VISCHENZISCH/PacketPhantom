@@ -47,6 +47,10 @@
   --glass-btn: rgba(255, 255, 255, 0.6);
   --glass-btn-line: rgba(28, 23, 20, 0.1);
   --glass-btn-hi: rgba(255, 255, 255, 0.95);
+  /* Verre des cartes du Monitoring */
+  --glass-card: rgba(255, 255, 255, 0.62);
+  --glass-rim: linear-gradient(140deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.35) 45%, rgba(28, 23, 20, 0.1));
+  --glass-shadow: 0 10px 30px rgba(28, 23, 20, 0.06);
   --radius-panel: 26px;
   --radius: 22px;
   --radius-sm: 14px;
@@ -94,6 +98,9 @@
   --glass-btn: rgba(255, 255, 255, 0.06);
   --glass-btn-line: rgba(255, 255, 255, 0.12);
   --glass-btn-hi: rgba(255, 255, 255, 0.12);
+  --glass-card: rgba(22, 25, 29, 0.6);
+  --glass-rim: linear-gradient(140deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05) 45%, rgba(255, 255, 255, 0.1));
+  --glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   color-scheme: dark;
 }
 
@@ -655,7 +662,36 @@ kbd {
 
 /* ------------------------------------------------------------------ monitoring */
 
-.monitor-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--gap); align-items: start; }
+.monitor-grid { position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--gap); align-items: start; }
+
+/* Grille de fond sous les cartes, estompée vers les bords. */
+.monitor-grid::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  z-index: -1;
+  --grid: color-mix(in srgb, var(--fg) 11%, transparent);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-position: center;
+  background-size: 32px 32px;
+  -webkit-mask-image: radial-gradient(farthest-side, #000 60%, transparent 100%);
+  mask-image: radial-gradient(farthest-side, #000 60%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Cartes en verre : fond translucide flouté (la grille transparaît), liseré clair en dégradé
+   posé par la double couche de fond (padding-box / border-box), reflet en haut. */
+.monitor-grid > .card {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--glass-card), var(--glass-card)) padding-box,
+    var(--glass-rim) border-box;
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  box-shadow: inset 0 1px 0 var(--glass-btn-hi), var(--glass-shadow);
+}
 .mon-tile { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .mon-tile strong { overflow: hidden; font-size: clamp(20px, 1.6vw, 26px); font-weight: 600; letter-spacing: -0.02em; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mon-tile small { min-height: 20px; color: var(--muted); font-size: 12px; }
