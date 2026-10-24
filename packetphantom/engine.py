@@ -92,6 +92,7 @@ class Engine:
             self.stats = Stats()
             self._tls_pending: dict[int, bytes] = {}
             self.dropped = 0
+            self.last_drop: float | None = None   # horodatage de la dernière perte
             self.analysis_errors = 0
             self._next_tick = time.monotonic() + 1
 
@@ -146,6 +147,7 @@ class Engine:
     def _push(self, data: bytes, ts: float, linktype: int) -> None:
         if len(self._queue) >= self.cfg.queue_size:
             self.dropped += 1
+            self.last_drop = time.time()
         else:
             self._queue.append((data, ts, linktype))
 
@@ -172,7 +174,7 @@ class Engine:
                 time.sleep(0.002)
             if time.monotonic() >= self._next_tick:
                 with self.lock:
-                    self.stats.tick()
+                    self.stats.tick(len(self._queue))
                 self._next_tick += 1
 
     def process(self, data: bytes, ts: float, linktype: int = 1) -> Packet:

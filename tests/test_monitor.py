@@ -41,6 +41,23 @@ def test_monitor_reports_pipeline_components_and_process(server):
     assert process["memory"] is None or process["memory"] > 0
     assert m["packets"] == 2 and len(m["pps"]) == len(m["bps"])   # champs de /api/status inclus
 
+    losses = m["losses"]
+    assert losses["dropped"] == 0 and losses["received"] == 2 and losses["last_drop"] is None
+    assert losses["queue_capacity"] == 100_000 and len(losses["queue_history"]) == len(m["pps"])
+
+
+def test_drops_are_timestamped_and_queue_sampled(frames):
+    engine = Engine(EngineConfig(queue_size=1))
+    engine.stop()
+    engine._closed.set()          # analyse arrêtée : la file ne se vide plus
+    engine._thread.join(timeout=5)
+    engine._push(frames.ping(), 1.0, 1)
+    engine._push(frames.ping(), 1.0, 1)   # file pleine : perdu
+    assert engine.dropped == 1 and engine.last_drop is not None
+    engine.stats.tick(engine.backlog)
+    assert engine.stats.queue[-1] == 1 and engine.stats.queue_peak == 1
+    engine.close()
+
 
 def test_monitor_reports_machine_resources(server):
     base, _ = server

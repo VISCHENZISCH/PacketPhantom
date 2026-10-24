@@ -161,15 +161,26 @@ i[data-icon] { display: inline-flex; }
   overflow-y: auto;
   overscroll-behavior: contain;
   border-radius: var(--radius-panel);
-  /* Grille de fond commune à toutes les pages ; « local » : elle défile avec le contenu. */
-  --page-grid: color-mix(in srgb, var(--fg) 8%, transparent);
-  background-color: var(--panel);
+  background: var(--panel);
+}
+
+/* Grille de fond sous les cartes : nette au centre, elle s'efface vers les bords.
+   (Le Globe a la sienne, sous le globe seulement.) */
+.dash-grid, .monitor-grid, .gridded { position: relative; isolation: isolate; }
+.dash-grid::before, .monitor-grid::before, .gridded::before {
+  content: "";
+  position: absolute;
+  inset: -16px;
+  z-index: -1;
+  --grid: color-mix(in srgb, var(--fg) 12%, transparent);
   background-image:
-    linear-gradient(var(--page-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--page-grid) 1px, transparent 1px);
-  background-position: -1px -1px;
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-position: center;
   background-size: 32px 32px;
-  background-attachment: local;
+  -webkit-mask-image: radial-gradient(closest-side, #000 30%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 30%, transparent 100%);
+  pointer-events: none;
 }
 
 /* ------------------------------------------------------------------ barre latérale */
@@ -637,7 +648,23 @@ kbd {
 
 .globe-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: var(--gap); align-items: start; }
 .globe-card { display: flex; flex-direction: column; gap: 14px; }
-.globe-stage { position: relative; display: grid; place-items: center; width: 100%; padding: 12px 0; }
+.globe-stage { position: relative; isolation: isolate; display: grid; place-items: center; width: 100%; padding: 12px 0; }
+/* Le globe repose sur sa grille, estompée vers les bords. */
+.globe-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  --grid: color-mix(in srgb, var(--fg) 12%, transparent);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-position: center;
+  background-size: 32px 32px;
+  -webkit-mask-image: radial-gradient(closest-side, #000 65%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 65%, transparent 100%);
+  pointer-events: none;
+}
 #globe-canvas { display: block; cursor: grab; touch-action: none; }
 .globe-tip {
   position: absolute;
@@ -704,16 +731,24 @@ kbd {
 @keyframes pulse-dot { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.5); } }
 
 /* Pertes */
-.mon-loss { display: flex; flex-direction: column; gap: 10px; }
-.loss-value { font-size: 56px; font-weight: 700; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.mon-loss { display: flex; flex-direction: column; gap: 12px; }
+.loss-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.loss-main { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.loss-main .muted { font-size: 13px; }
+.loss-value { font-size: 48px; font-weight: 700; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
 .loss-value[data-level="warn"] { color: var(--med); }
+.loss-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 10px 0; border-block: 1px solid var(--line); }
+.loss-facts div { display: grid; gap: 3px; min-width: 0; }
+.loss-facts dt { color: var(--muted); font-size: 11.5px; }
+.loss-facts dd { margin: 0; overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chart.mini { height: 104px; }
 .mon-loss p { margin: 0; font-size: 13px; }
-.mon-loss .vu { margin-top: auto; }
 .vu-caption { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
 
 /* Vumètre segmenté */
 .vu { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 3px; height: 22px; }
-.seg { border-radius: 2px; background: var(--surface-2); }
+.seg { border-radius: 2px; background: color-mix(in srgb, var(--fg) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 16%, transparent); }
+.seg.on { box-shadow: none; }
 .seg.on.ok { background: var(--primary); }
 .seg.on.warn { background: var(--med); }
 .seg.on.crit { background: var(--crit); }

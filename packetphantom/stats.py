@@ -24,6 +24,8 @@ class Stats:
         self.alerts: Counter[int] = Counter()   # sévérité -> nombre
         self.pps: deque[int] = deque([0] * HISTORY, maxlen=HISTORY)
         self.bps: deque[int] = deque([0] * HISTORY, maxlen=HISTORY)
+        self.queue: deque[int] = deque([0] * HISTORY, maxlen=HISTORY)   # file d'analyse, échantillon par seconde
+        self.queue_peak = 0
         self._sec_pkts = 0
         self._sec_bytes = 0
 
@@ -48,10 +50,12 @@ class Stats:
         name = service_name(port)
         self.services[f"{l4}/{port}" + (f" {name}" if name else "")] += 1
 
-    def tick(self) -> None:
+    def tick(self, backlog: int = 0) -> None:
         """Pousse la seconde écoulée dans l'historique (appelé par le moteur)."""
         self.pps.append(self._sec_pkts)
         self.bps.append(self._sec_bytes * 8)
+        self.queue.append(backlog)
+        self.queue_peak = max(self.queue_peak, backlog)
         self._sec_pkts = 0
         self._sec_bytes = 0
 

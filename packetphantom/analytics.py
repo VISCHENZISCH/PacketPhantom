@@ -176,8 +176,15 @@ def monitor(engine: Engine, geo: GeoResolver, streams: int = 0) -> dict:
         exceptions = list(rules.allow)
     memory, memory_kind = _memory()
     cpu = os.times()
+    with engine.lock:
+        st = engine.stats
+        losses = {
+            "dropped": engine.dropped, "received": st.total + engine.dropped, "last_drop": engine.last_drop,
+            "queue_peak": st.queue_peak, "queue_capacity": cfg.queue_size, "queue_history": list(st.queue),
+        }
     return {
         **base,
+        "losses": losses,
         "pipeline": [{"key": k, "label": label, "used": used, "capacity": cap, "rotating": rot}
                      for k, label, used, cap, rot in pipeline],
         "components": {

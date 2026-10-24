@@ -854,13 +854,15 @@ function niceMax(value) {
   return [1, 2, 2.5, 5, 10].map((m) => m * power).find((m) => m >= value);
 }
 
-function drawChart(el, values, format, label) {
-  el.chart = { values, format, label };
-  const width = Math.max(280, el.clientWidth);
-  const { height, top, right, bottom, left } = CHART;
+/* options : height (px), floor (valeur minimale du haut de l'échelle, ex. 10 % pour une jauge). */
+function drawChart(el, values, format, label, options = {}) {
+  el.chart = { values, format, label, options };
+  const width = Math.max(220, el.clientWidth);
+  const { top, right, bottom, left } = CHART;
+  const height = options.height ?? CHART.height;
   const plotW = width - left - right;
   const plotH = height - top - bottom;
-  const max = niceMax(Math.max(0, ...values));
+  const max = niceMax(Math.max(options.floor ?? 0, ...values));
   const last = values.length - 1;
   const x = (i) => left + (last > 0 ? (i / last) * plotW : plotW);
   const y = (v) => top + plotH - (v / max) * plotH;
@@ -920,7 +922,7 @@ function bindChart(el) {
     el.hoverX = undefined;
     showChartHover(el);
   });
-  new ResizeObserver(() => el.chart && drawChart(el, el.chart.values, el.chart.format, el.chart.label)).observe(el);
+  new ResizeObserver(() => el.chart && drawChart(el, el.chart.values, el.chart.format, el.chart.label, el.chart.options)).observe(el);
 }
 
 /* Niveau d'un instrument → voyant + mot (jamais la couleur seule). */
@@ -1004,15 +1006,22 @@ async function refreshMonitor() {
   $("#mon-peak").textContent = `${fmt.count(Math.max(0, ...m.pps))}/s`;
   drawChart($("#chart-pps"), m.pps, (v) => `${fmt.count(Math.round(v))}/s`, "Paquets par seconde");
 
-  // Pertes
-  $("#mon-dropped").textContent = fmt.count(m.dropped);
-  $("#mon-dropped").dataset.level = m.dropped ? "warn" : "ok";
-  $("#mon-dropped-meta").textContent = m.dropped
-    ? "paquets perdus : la file d'analyse a débordé. Restreignez la capture avec un filtre BPF."
-    : "paquet perdu depuis le lancement.";
+  // Pertes : compteur, taux, pic et historique de la file (utiles même sans perte)
+  const loss = m.losses;
+  const lossRate = loss.received ? (loss.dropped / loss.received) * 100 : 0;
+  $("#mon-loss-state").replaceChildren(led(loss.dropped ? "warn" : "ok", loss.dropped ? "Débordement" : "Aucune perte", true));
+  $("#mon-dropped").textContent = fmt.count(loss.dropped);
+  $("#mon-dropped").dataset.level = loss.dropped ? "warn" : "ok";
+  $("#mon-dropped-meta").textContent = loss.dropped
+    ? "paquets perdus : la file a débordé, restreignez la capture avec un filtre BPF."
+    : `paquet perdu sur ${fmt.count(loss.received)} reçus`;
+  $("#mon-loss-rate").textContent = `${lossRate < 0.01 && loss.dropped ? "< 0,01" : lossRate.toFixed(2).replace(".", ",")} %`;
+  $("#mon-queue-peak").textContent = `${fmt.count(loss.queue_peak)} (${percentOf(loss.queue_peak, loss.queue_capacity)} %)`;
+  $("#mon-last-drop").textContent = loss.last_drop ? fmt.ago(loss.last_drop) : "aucune";
+  drawChart($("#chart-queue"), loss.queue_history.map((n) => (n / loss.queue_capacity) * 100),
+    (v) => `${Math.round(v)} %`, "Remplissage de la file d'analyse", { height: 104, floor: 10 });
   $("#mon-queue-vu").replaceChildren(...vu(queuePct, false));
-  const queueLevel = levelOf(queuePct, 50, 90);
-  $("#mon-queue-led").dataset.level = queueLevel;
+  $("#mon-queue-led").dataset.level = levelOf(queuePct, 50, 90);
   $("#mon-queue-meta").textContent = `File d'analyse ${queuePct} % · ${fmt.count(queue.used)} en attente`;
 
   // Cadrans

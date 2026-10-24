@@ -235,9 +235,17 @@
 
           <!-- Pertes : compteur et vumètre de la file d'analyse -->
           <article class="card mon-loss">
-            <h3>Pertes</h3>
-            <strong id="mon-dropped" class="loss-value">-</strong>
-            <p id="mon-dropped-meta" class="muted"></p>
+            <header class="loss-head"><h3>Pertes</h3><span id="mon-loss-state"></span></header>
+            <div class="loss-main">
+              <strong id="mon-dropped" class="loss-value">-</strong>
+              <span id="mon-dropped-meta" class="muted"></span>
+            </div>
+            <dl class="loss-facts">
+              <div><dt>Taux de perte</dt><dd id="mon-loss-rate">-</dd></div>
+              <div><dt>Pic de la file</dt><dd id="mon-queue-peak">-</dd></div>
+              <div><dt>Dernière perte</dt><dd id="mon-last-drop">-</dd></div>
+            </dl>
+            <div id="chart-queue" class="chart mini" data-label="Remplissage de la file d'analyse"></div>
             <div id="mon-queue-vu" class="vu" aria-hidden="true"></div>
             <p class="vu-caption"><span id="mon-queue-led" class="led small"></span><span id="mon-queue-meta"></span></p>
           </article>
@@ -273,7 +281,7 @@
             <button class="btn btn-outline" type="button" data-action="export">Exporter PCAP</button>
           </div>
         </div>
-        <div class="card table-card"><div id="view" class="table-wrap"></div></div>
+        <div class="gridded"><div class="card table-card"><div id="view" class="table-wrap"></div></div></div>
       </section>
     </div>
   </div>
