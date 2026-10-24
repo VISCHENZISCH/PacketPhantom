@@ -161,7 +161,15 @@ i[data-icon] { display: inline-flex; }
   overflow-y: auto;
   overscroll-behavior: contain;
   border-radius: var(--radius-panel);
-  background: var(--panel);
+  /* Grille de fond commune à toutes les pages ; « local » : elle défile avec le contenu. */
+  --page-grid: color-mix(in srgb, var(--fg) 8%, transparent);
+  background-color: var(--panel);
+  background-image:
+    linear-gradient(var(--page-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--page-grid) 1px, transparent 1px);
+  background-position: -1px -1px;
+  background-size: 32px 32px;
+  background-attachment: local;
 }
 
 /* ------------------------------------------------------------------ barre latérale */
@@ -417,11 +425,24 @@ kbd {
   border-radius: var(--radius);
   background: var(--surface);
 }
+/* Cartes en verre : fond translucide flouté (la grille transparaît), liseré clair en dégradé
+   posé par la double couche de fond (padding-box / border-box), reflet en haut.
+   :where() garde la spécificité d'une simple classe : la carte orange et les cartes sombres,
+   déclarées plus loin ou plus précises, conservent leur fond. */
+:where(.page) .card {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--glass-card), var(--glass-card)) padding-box,
+    var(--glass-rim) border-box;
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  box-shadow: inset 0 1px 0 var(--glass-btn-hi), var(--glass-shadow);
+}
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
 
 /* Cartes de listes (hôtes, alertes, destinations) : en-tête noir sur toute la largeur,
    arrondi par la carte (overflow: hidden). */
-.card.list-card { padding-top: 0; overflow: hidden; border: 0; }
+.card.list-card { padding-top: 0; overflow: hidden; }
 .list-card > .card-head {
   margin: 0 -22px 14px;
   padding: 14px 22px;
@@ -616,23 +637,7 @@ kbd {
 
 .globe-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: var(--gap); align-items: start; }
 .globe-card { display: flex; flex-direction: column; gap: 14px; }
-.globe-stage { position: relative; isolation: isolate; display: grid; place-items: center; width: 100%; padding: 12px 0; }
-/* Grille de fond, estompée vers les bords ; le globe (opaque) se dessine par-dessus. */
-.globe-stage::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  --grid: color-mix(in srgb, var(--fg) 12%, transparent);
-  background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-position: center;
-  background-size: 32px 32px;
-  -webkit-mask-image: radial-gradient(closest-side, #000 65%, transparent 100%);
-  mask-image: radial-gradient(closest-side, #000 65%, transparent 100%);
-  pointer-events: none;
-}
+.globe-stage { position: relative; display: grid; place-items: center; width: 100%; padding: 12px 0; }
 #globe-canvas { display: block; cursor: grab; touch-action: none; }
 .globe-tip {
   position: absolute;
@@ -662,36 +667,7 @@ kbd {
 
 /* ------------------------------------------------------------------ monitoring */
 
-.monitor-grid { position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--gap); align-items: start; }
-
-/* Grille de fond sous les cartes, estompée vers les bords. */
-.monitor-grid::before {
-  content: "";
-  position: absolute;
-  inset: -12px;
-  z-index: -1;
-  --grid: color-mix(in srgb, var(--fg) 11%, transparent);
-  background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-position: center;
-  background-size: 32px 32px;
-  -webkit-mask-image: radial-gradient(farthest-side, #000 60%, transparent 100%);
-  mask-image: radial-gradient(farthest-side, #000 60%, transparent 100%);
-  pointer-events: none;
-}
-
-/* Cartes en verre : fond translucide flouté (la grille transparaît), liseré clair en dégradé
-   posé par la double couche de fond (padding-box / border-box), reflet en haut. */
-.monitor-grid > .card {
-  border: 1px solid transparent;
-  background:
-    linear-gradient(var(--glass-card), var(--glass-card)) padding-box,
-    var(--glass-rim) border-box;
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  backdrop-filter: blur(14px) saturate(160%);
-  box-shadow: inset 0 1px 0 var(--glass-btn-hi), var(--glass-shadow);
-}
+.monitor-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--gap); align-items: start; }
 /* Disposition : pouls (4) + pertes (2) / trois cadrans (2 chacun) / débit (4) + processus (2) / tampons (6) */
 .mon-pulse, .chart-card { grid-column: span 4; }
 .mon-loss, .dial-card, .mon-process { grid-column: span 2; }
@@ -801,7 +777,7 @@ kbd {
 
 /* Tableaux (Paquets, Flux, Hôtes, Alertes, Exceptions) : carte sans bordure,
    ligne des titres de colonnes en en-tête noir, comme les cartes de listes. */
-.table-card { padding: 0; overflow: hidden; border: 0; }
+.table-card { padding: 0; overflow: hidden; }
 .table-card th { padding: 15px 12px; background: #0c0c0d; color: rgba(255, 255, 255, 0.72); }
 .table-card th.sortable:hover, .table-card th.sorted { color: var(--primary); }
 .table-card :is(th, td):first-child { padding-left: 22px; }
