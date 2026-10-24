@@ -388,11 +388,6 @@ const KPIS = {
   packets: { value: (s) => fmt.count(s.packets), chip: (s) => `${fmt.count(last(s.pps))}/s`, text: (s) => `${fmt.bytes(s.bytes)} capturés` },
   traffic: { value: (s) => fmt.bits(last(s.bps)), chip: (s) => `max ${fmt.bits(Math.max(...s.bps))}`, text: () => "sur 2 minutes" },
   flows: { value: (s) => fmt.count(s.flows), chip: (s) => `${fmt.count(s.hosts)} hôtes`, text: () => "conversations suivies" },
-  alerts: {
-    value: (s) => fmt.count(sum(Object.values(s.alerts))),
-    chip: (s) => `${s.alerts["4"] ?? 0} critiques`,
-    text: (s) => `${s.alerts["3"] ?? 0} élevées`,
-  },
 };
 
 function renderStatus(s) {
@@ -425,7 +420,6 @@ function renderStatus(s) {
     $(".chip", card).textContent = kpi.chip(s);
     $(".trend-text", card).textContent = kpi.text(s);
   }
-  $('[data-kpi="alerts"]').classList.toggle("alerting", Boolean(s.alerts["4"] || s.alerts["3"]));
   renderPills(s.bps);
   $("#traffic-now").textContent = `${fmt.bits(last(s.bps))} · ${fmt.count(last(s.pps))} paquets/s`;
   renderUptime();

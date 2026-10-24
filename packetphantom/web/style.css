@@ -468,15 +468,13 @@ kbd {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-areas:
-    "k1 k2 k3 k4"
-    "tr tr tr ho"
-    "ga ga ti ti";
+    "k1 k2 k3 ti"
+    "tr tr ga ho";
   gap: var(--gap);
 }
 [data-kpi="packets"] { grid-area: k1; }
 [data-kpi="traffic"] { grid-area: k2; }
 [data-kpi="flows"] { grid-area: k3; }
-[data-kpi="alerts"] { grid-area: k4; }
 .traffic-card { grid-area: tr; }
 .hosts-card { grid-area: ho; }
 .gauge-card { grid-area: ga; }
@@ -492,7 +490,6 @@ kbd {
 .kpi-hero .kpi-trend { color: var(--hero-text); }
 .kpi-hero .chip { color: var(--hero-text); }
 .kpi-hero .round-btn { border-color: transparent; background: rgba(255, 255, 255, 0.92); color: var(--on-light); }
-.kpi.alerting .kpi-value { color: var(--crit); }
 
 /* Histogramme à piliers */
 .pills { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 14px; height: 240px; padding-top: 30px; }
@@ -986,7 +983,7 @@ pre.server { border-left: 4px solid var(--server); }
   .mon-process { grid-column: span 6; }
   .dash-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-areas: "k1 k2" "k3 k4" "tr tr" "ho ho" "ga ti";
+    grid-template-areas: "k1 k2" "k3 ti" "tr tr" "ga ho";
   }
 }
 
@@ -1010,7 +1007,7 @@ pre.server { border-left: 4px solid var(--server); }
   .dial-card { grid-column: span 6; }
   .pulse-figures { gap: 18px; }
   h1 { font-size: 28px; }
-  .dash-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "k1" "k2" "k3" "k4" "tr" "ho" "ga" "ti"; }
+  .dash-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "k1" "k2" "k3" "ti" "tr" "ga" "ho"; }
   .source div { display: none; }
   .kpi-value { font-size: 40px; }
   .pills { gap: 6px; height: 170px; }
