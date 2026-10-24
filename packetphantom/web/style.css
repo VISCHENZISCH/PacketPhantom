@@ -648,7 +648,7 @@ kbd {
 
 .globe-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: var(--gap); align-items: start; }
 .globe-card { display: flex; flex-direction: column; gap: 14px; }
-.globe-stage { position: relative; isolation: isolate; display: grid; place-items: center; width: 100%; padding: 12px 0; }
+.globe-stage { position: relative; isolation: isolate; display: grid; place-items: center; width: 100%; padding: 0; }
 /* Le globe repose sur sa grille, estompée vers les bords. */
 .globe-stage::before {
   content: "";

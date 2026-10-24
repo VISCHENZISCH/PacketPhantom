@@ -15,7 +15,7 @@
   const MAX_PARTICLES = 600;
   const AUTO_SPIN = 4 * RAD;     // rad/s quand personne ne manipule le globe
   const LIFT = 0.2;              // hauteur maximale d'un arc (antipodes), en rayons
-  const MAX_SIZE = 680;          // px
+  const MAX_SIZE = 520;          // px
 
   const vec = (lat, lon) => {
     const la = lat * RAD;
@@ -139,7 +139,7 @@
       const box = this.canvas.parentElement.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       // Tient dans la largeur de la carte et dans la hauteur de la fenêtre (en-tête de page déduit).
-      const size = Math.max(240, Math.min(box.width, window.innerHeight - 300, MAX_SIZE));
+      const size = Math.max(240, Math.min(box.width, window.innerHeight - 400, MAX_SIZE));
       this.canvas.style.width = `${size}px`;
       this.canvas.style.height = `${size}px`;
       this.canvas.width = Math.round(size * dpr);
