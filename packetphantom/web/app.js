@@ -923,93 +923,137 @@ function bindChart(el) {
   new ResizeObserver(() => el.chart && drawChart(el, el.chart.values, el.chart.format, el.chart.label)).observe(el);
 }
 
-/* Pastille d'état : une icône et un libellé accompagnent toujours la couleur. */
-const LEVELS = {
-  ok: ["ok-pill", "check"], warn: ["sev-2", "warn"], crit: ["sev-4", "warn"], off: ["sev-0", "info"],
-};
-const levelPill = (level, label) => h("span", { class: `status level ${LEVELS[level][0]}` }, icon(LEVELS[level][1]), label);
+/* Niveau d'un instrument → voyant + mot (jamais la couleur seule). */
+const LEVEL_WORDS = { ok: "Normal", warn: "Élevé", crit: "Critique", off: "Inactif", idle: "Mesure…" };
+const levelOf = (pct, warn = 70, crit = 90) => (pct === null ? "idle" : pct >= crit ? "crit" : pct >= warn ? "warn" : "ok");
 
-function setTile(id, value, meta = "", level = null) {
-  $(`#mon-${id}`).textContent = value;
-  const metaEl = $(`#mon-${id}-meta`);
-  metaEl.replaceChildren(...[level ? levelPill(level, meta) : meta].filter(Boolean));
+function led(level, text, small = false) {
+  return h("span", { class: "led-label" }, h("span", { class: `led ${small ? "small" : ""}`, "data-level": level }), text);
 }
 
 const percentOf = (used, capacity) => (capacity ? Math.min(100, Math.round((used / capacity) * 100)) : 0);
 
-function pipelineRow(item) {
-  const pct = percentOf(item.used, item.capacity);
-  let level = null;
-  let note;
-  if (item.rotating) {
-    note = pct >= 100 ? "Plein : les plus anciens sont remplacés (normal)" : `${pct} % utilisé`;
-  } else {
-    level = pct >= 90 ? "crit" : pct >= 50 ? "warn" : "ok";
-    note = { crit: "Saturée : des paquets sont perdus", warn: "Chargée", ok: "Fluide" }[level];
-  }
-  const bar = meter(item.used / (item.capacity || 1));
-  if (level && level !== "ok") bar.classList.add(level);
-  return row({
-    lead: h("span", { class: "tile hue-3" }, icon(item.rotating ? "list" : "flow")),
-    title: item.label,
-    trailing: h("span", { class: "row-value" }, `${fmt.count(item.used)} / ${fmt.count(item.capacity)}`),
-    details: [bar, level ? h("span", { class: "row-meta" }, levelPill(level, note)) : meta(note)],
-    attrs: { class: "row inert" },
+/* Vumètre segmenté : 20 segments ; vert-orange-rouge pour une file qui perd des données quand elle sature,
+   teinte unique pour une structure en rotation (pleine = normal). */
+function vu(pct, rotating) {
+  const lit = Math.round(pct / 5);
+  return Array.from({ length: 20 }, (_, i) => {
+    const zone = rotating ? "rot" : i >= 17 ? "crit" : i >= 12 ? "warn" : "ok";
+    return h("span", { class: `seg ${i < lit ? `on ${zone}` : ""}` });
   });
 }
 
-function componentRow(iconName, title, level, label, detail) {
-  return row({
-    lead: h("span", { class: "tile hue-3" }, icon(iconName)),
-    title, trailing: levelPill(level, label), details: meta(detail), attrs: { class: "row inert" },
+/* Cadran à 240° : arc de fond gradué, arc de valeur coloré selon le niveau, valeur au centre. */
+const DIAL = { cx: 100, cy: 96, r: 74, from: 150, sweep: 240 };
+const polar = (deg, radius = DIAL.r) => [DIAL.cx + radius * Math.cos((deg * Math.PI) / 180), DIAL.cy + radius * Math.sin((deg * Math.PI) / 180)];
+const DIAL_PATH = (() => {
+  const [x0, y0] = polar(DIAL.from);
+  const [x1, y1] = polar(DIAL.from + DIAL.sweep);
+  return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${DIAL.r} ${DIAL.r} 0 1 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+})();
+
+function dial(el, { title, iconName, pct, center, unit, caption, level, rows }) {
+  const ticks = Array.from({ length: 11 }, (_, i) => {
+    const deg = DIAL.from + (DIAL.sweep * i) / 10;
+    const [xa, ya] = polar(deg, DIAL.r - 16);
+    const [xb, yb] = polar(deg, DIAL.r - (i % 5 ? 21 : 25));
+    return svg("line", { class: "dial-tick", x1: xa, y1: ya, x2: xb, y2: yb });
   });
+  const value = pct === null ? 0 : Math.max(0, Math.min(100, pct));
+  const [nx, ny] = polar(DIAL.from + (DIAL.sweep * value) / 100, DIAL.r);
+  el.replaceChildren(
+    h("header", { class: "dial-head" }, h("span", { class: "tile hue-3" }, icon(iconName)), h("h3", {}, title)),
+    h("div", { class: "dial", "data-level": level },
+      svg("svg", { viewBox: "0 0 200 170", role: "img", "aria-label": `${title} : ${center}${unit}` },
+        svg("path", { class: "dial-track", d: DIAL_PATH, pathLength: 100 }),
+        ...ticks,
+        svg("path", { class: "dial-value", d: DIAL_PATH, pathLength: 100, "stroke-dasharray": `${value} 200` }),   // 200 : le motif ne se répète pas au bout de l'arc
+        pct === null ? svg("g", {}) : svg("circle", { class: "dial-needle", cx: nx, cy: ny, r: 6 })),
+      h("div", { class: "dial-center" }, h("strong", {}, center, h("small", {}, unit)), led(level, caption ?? LEVEL_WORDS[level]))),
+    h("dl", { class: "dial-rows" }, rows.flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)])));
+}
+
+function pipelineGauge(item) {
+  const pct = percentOf(item.used, item.capacity);
+  const level = item.rotating ? "ok" : levelOf(pct, 50, 90);
+  const note = item.rotating
+    ? (pct >= 100 ? "En rotation" : `${pct} % utilisé`)
+    : { ok: "Fluide", warn: "Chargée", crit: "Saturée : pertes", idle: "-" }[level];
+  return h("section", { class: "pipe" },
+    h("header", {}, h("span", {}, item.label), h("b", {}, `${pct} %`)),
+    h("div", { class: "vu" }, vu(pct, item.rotating)),
+    h("footer", {}, h("span", { class: "muted" }, `${fmt.count(item.used)} / ${fmt.count(item.capacity)}`),
+      item.rotating ? h("span", { class: "muted" }, note) : led(level, note, true)));
 }
 
 async function refreshMonitor() {
   const m = await api("/api/monitor");
-  const { store, geo: geoInfo, keylog, rules, streams } = m.components;
+  const { cpu, memory, gpu } = m.system;
   const queue = m.pipeline.find((p) => p.key === "queue");
   const queuePct = percentOf(queue.used, queue.capacity);
-  const modeLabel = { live: "Capture en direct", file: "Lecture de fichier", done: "Fichier analysé", idle: "Arrêtée" }[m.mode] ?? m.mode;
+  const running = m.mode === "live" || m.mode === "file";
+  const modeLabel = { live: "Capture en direct", file: "Lecture de fichier", done: "Fichier analysé", idle: "Capture arrêtée" }[m.mode] ?? m.mode;
 
-  setTile("state", modeLabel, m.error ? "Erreur" : m.mode === "live" ? "Active" : "Inactive",
-    m.error ? "crit" : m.mode === "live" || m.mode === "file" ? "ok" : "off");
-  setTile("pps", fmt.count(last(m.pps)), `max ${fmt.count(Math.max(0, ...m.pps))} sur 2 min`);
-  setTile("bps", fmt.bits(last(m.bps)), `max ${fmt.bits(Math.max(0, ...m.bps))} sur 2 min`);
-  setTile("dropped", fmt.count(m.dropped), m.dropped ? "File saturée" : "Aucune perte", m.dropped ? "warn" : "ok");
-  setTile("queue", `${queuePct} %`, `${fmt.count(queue.used)} en attente`,
-    queuePct >= 90 ? "crit" : queuePct >= 50 ? "warn" : "ok");
-  setTile("memory", m.process.memory === null ? "-" : fmt.bytes(m.process.memory),
-    m.process.memory === null ? "non mesurée sur ce système" : `${m.process.memory_kind} · ${m.process.threads} threads`);
-
-  drawChart($("#chart-bps"), m.bps, fmt.bits, "Débit");
+  // Pouls
+  $("#mon-led").dataset.level = m.error ? "crit" : running ? "ok" : "off";
+  $("#mon-led").classList.toggle("beating", running && !m.error);
+  $("#mon-state").textContent = m.error ? "Erreur de capture" : modeLabel;
+  $("#mon-state-meta").textContent = m.error || `${m.source || "Interface par défaut"} · BPF ${m.bpf || "aucun"}`;
+  $("#mon-pps").textContent = fmt.count(last(m.pps));
+  $("#mon-bps").textContent = fmt.bits(last(m.bps));
+  $("#mon-peak").textContent = `${fmt.count(Math.max(0, ...m.pps))}/s`;
   drawChart($("#chart-pps"), m.pps, (v) => `${fmt.count(Math.round(v))}/s`, "Paquets par seconde");
 
-  $("#mon-pipeline").replaceChildren(...m.pipeline.map(pipelineRow));
+  // Pertes
+  $("#mon-dropped").textContent = fmt.count(m.dropped);
+  $("#mon-dropped").dataset.level = m.dropped ? "warn" : "ok";
+  $("#mon-dropped-meta").textContent = m.dropped
+    ? "paquets perdus : la file d'analyse a débordé. Restreignez la capture avec un filtre BPF."
+    : "paquet perdu depuis le lancement.";
+  $("#mon-queue-vu").replaceChildren(...vu(queuePct, false));
+  const queueLevel = levelOf(queuePct, 50, 90);
+  $("#mon-queue-led").dataset.level = queueLevel;
+  $("#mon-queue-meta").textContent = `File d'analyse ${queuePct} % · ${fmt.count(queue.used)} en attente`;
 
-  const geoLevel = geoInfo.mode === "off" ? "off" : geoInfo.home ? "ok" : "warn";
-  $("#mon-components").replaceChildren(
-    componentRow("radar", "Capture", m.error ? "crit" : m.mode === "live" ? "ok" : "off", m.error ? "Erreur" : modeLabel,
-      m.error || `${m.source || "Interface par défaut"} · BPF ${m.bpf || "aucun"}`),
-    store.enabled
-      ? componentRow("list", "Base des alertes", store.error ? "crit" : store.dropped ? "warn" : "ok",
-        store.error ? "Erreur" : store.dropped ? "Pertes" : "Active",
-        store.error || `${store.path} · ${fmt.bytes(store.size)} · rétention ${store.retention_days ? `${store.retention_days} j` : "illimitée"}`)
-      : componentRow("list", "Base des alertes", "off", "Désactivée", "Ajoutez --db FICHIER pour conserver les alertes"),
-    componentRow("globe", "Géolocalisation", geoLevel, { off: "Désactivée", warn: "Incomplète", ok: "Active" }[geoLevel],
-      geoInfo.mode !== "off" && !geoInfo.home ? `${geoInfo.note} · position du réseau inconnue (--home)` : geoInfo.note),
-    componentRow("shield", "Déchiffrement TLS", keylog.enabled ? "ok" : "off", keylog.enabled ? "Actif" : "Désactivé",
-      keylog.enabled ? "Fichier de clés chargé" : "Ajoutez --tls-keylog FICHIER"),
-    componentRow("mute", "Règles de détection", "ok", "Actives",
-      `${rules.disabled.length} règle(s) désactivée(s) · ${rules.exceptions} exception(s)`),
-    componentRow("wifi", "Temps réel", streams ? "ok" : "off", `${streams} connexion${streams > 1 ? "s" : ""}`,
-      "Tableaux de bord abonnés aux événements"));
+  // Cadrans
+  dial($("#dial-cpu"), {
+    title: "Processeur", iconName: "cpu", pct: cpu.system, unit: "%",
+    center: cpu.system === null ? "-" : Math.round(cpu.system), level: levelOf(cpu.system),
+    rows: [["PacketPhantom", cpu.process === null ? "mesure…" : `${cpu.process.toFixed(1)} %`],
+      ["Cœurs", String(cpu.cores)], ["Charge 1 / 5 / 15 min", cpu.load ? cpu.load.join(" · ") : "non disponible"]],
+  });
+  const ramPct = memory.total ? (memory.used / memory.total) * 100 : null;
+  dial($("#dial-ram"), {
+    title: "Mémoire", iconName: "server", pct: ramPct, unit: "%",
+    center: ramPct === null ? "-" : Math.round(ramPct), level: levelOf(ramPct, 75, 90),
+    rows: [["Utilisée", memory.total ? `${fmt.bytes(memory.used)} / ${fmt.bytes(memory.total)}` : "non disponible"],
+      ["PacketPhantom", memory.process === null ? "non mesurée" : `${fmt.bytes(memory.process)} (${m.process.memory_kind})`],
+      ["Threads", String(m.process.threads)]],
+  });
+  if (!gpu) {
+    dial($("#dial-gpu"), { title: "Carte graphique", iconName: "grid", pct: null, center: "-", unit: "", level: "off",
+      caption: "Aucun GPU détecté", rows: [["Lecture", "nvidia-smi (NVIDIA), sysfs (AMD, Intel)"]] });
+  } else if (gpu.util !== null) {
+    dial($("#dial-gpu"), { title: "Carte graphique", iconName: "grid", pct: gpu.util, unit: "%",
+      center: Math.round(gpu.util), level: levelOf(gpu.util),
+      rows: [["Modèle", gpu.name], ["Mémoire vidéo", gpu.vram_total ? `${fmt.bytes(gpu.vram_used)} / ${fmt.bytes(gpu.vram_total)}` : "non disponible"]] });
+  } else {
+    const freqPct = gpu.freq_max_mhz ? (gpu.freq_mhz / gpu.freq_max_mhz) * 100 : null;
+    dial($("#dial-gpu"), { title: "Carte graphique", iconName: "grid", pct: freqPct, unit: freqPct === null ? "" : "MHz",
+      center: gpu.freq_mhz ?? "-", level: freqPct === null ? "off" : "ok",
+      caption: freqPct === null ? "Non mesurable" : "Fréquence",
+      rows: [["Modèle", gpu.name], ["Fréquence max", gpu.freq_max_mhz ? `${gpu.freq_max_mhz} MHz` : "non disponible"],
+        ["Utilisation", "non exposée par le pilote"]] });
+  }
+
+  drawChart($("#chart-bps"), m.bps, fmt.bits, "Débit");
+  $("#mon-pipeline").replaceChildren(...m.pipeline.map(pipelineGauge));
 
   const p = m.process;
   $("#mon-process").replaceChildren(...[
     ["Version", `PacketPhantom ${m.version}`], ["Python", `${p.python} · ${p.platform}`], ["PID", String(p.pid)],
     ["En service depuis", fmt.duration(p.uptime)], ["Temps processeur", `${p.cpu_seconds.toFixed(1)} s`],
-    ["Threads", String(p.threads)], ["Erreurs d'analyse", fmt.count(m.analysis_errors)],
+    ["Erreurs d'analyse", fmt.count(m.analysis_errors)],
   ].flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)]));
 }
 

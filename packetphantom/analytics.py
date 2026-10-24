@@ -13,6 +13,7 @@ from dataclasses import asdict
 from . import __version__
 from .engine import Engine
 from .geoip import GeoInfo, GeoResolver
+from .sysinfo import PROBE
 
 ENCRYPTED = {"TLS", "QUIC", "SSH", "HTTPS", "HTTPS-ALT", "DOT", "IMAPS", "POP3S", "SMTPS", "LDAPS",
              "WIREGUARD", "OPENVPN", "ESP"}
@@ -159,7 +160,7 @@ def _file_size(path) -> int:
 
 
 def monitor(engine: Engine, geo: GeoResolver, streams: int = 0) -> dict:
-    """Santé du capteur : tampons et files, composants, processus."""
+    """Santé du capteur : tampons et files, composants, processus, ressources de la machine."""
     base = status(engine, geo)
     cfg, store, rules = engine.cfg, engine.store, engine.rules
     with engine.lock:
@@ -196,6 +197,7 @@ def monitor(engine: Engine, geo: GeoResolver, streams: int = 0) -> dict:
             },
             "streams": streams,
         },
+        "system": {"cpu": PROBE.cpu(), "memory": PROBE.memory(memory), "gpu": PROBE.gpu()},
         "process": {
             "pid": os.getpid(), "uptime": round(time.time() - PROCESS_START, 1),
             "cpu_seconds": round(cpu.user + cpu.system, 2), "memory": memory, "memory_kind": memory_kind,

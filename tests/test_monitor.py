@@ -40,3 +40,30 @@ def test_monitor_reports_pipeline_components_and_process(server):
     assert process["pid"] > 0 and process["threads"] >= 2 and process["uptime"] >= 0
     assert process["memory"] is None or process["memory"] > 0
     assert m["packets"] == 2 and len(m["pps"]) == len(m["bps"])   # champs de /api/status inclus
+
+
+def test_monitor_reports_machine_resources(server):
+    base, _ = server
+    auth = {"Authorization": "Bearer t0ken"}
+    requests.get(base + "/api/monitor", headers=auth, timeout=5)   # premier échantillon CPU
+    system = requests.get(base + "/api/monitor", headers=auth, timeout=5).json()["system"]
+    assert set(system) == {"cpu", "memory", "gpu"}
+    cpu = system["cpu"]
+    assert cpu["cores"] >= 1 and cpu["process"] is not None and 0 <= cpu["process"] <= 100
+    assert system["memory"]["total"] is None or system["memory"]["used"] <= system["memory"]["total"]
+    assert system["gpu"] is None or {"vendor", "name", "util"} <= set(system["gpu"])
+
+
+def test_system_parsers():
+    from packetphantom.sysinfo import parse_meminfo, parse_nvidia, parse_proc_stat
+
+    assert parse_proc_stat("cpu  100 0 50 800 50 0 0 0 0 0\ncpu0 1 2 3 4\n") == (850, 1000)
+    assert parse_proc_stat("intr 1 2 3") is None
+    meminfo = "MemTotal:       16000 kB\nMemFree: 1000 kB\nMemAvailable:    4000 kB\n"
+    assert parse_meminfo(meminfo) == (12000 * 1024, 16000 * 1024)
+    assert parse_meminfo("MemTotal: 16000 kB\n") is None
+    assert parse_nvidia("NVIDIA GeForce RTX 3060, 37, 1024, 12288\n") == {
+        "vendor": "NVIDIA", "name": "NVIDIA GeForce RTX 3060", "util": 37.0,
+        "vram_used": 1024 * 1024 * 1024, "vram_total": 12288 * 1024 * 1024}
+    assert parse_nvidia("No devices were found") is None
+    assert parse_nvidia("GPU, N/A, 1, 2") is None

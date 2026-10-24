@@ -210,40 +210,55 @@
         <div class="page-head">
           <div>
             <h1>Monitoring</h1>
-            <p>Santé du capteur : capture, file d'analyse, mémoire et stockage.</p>
+            <p>Les instruments du capteur : son pouls, ses pertes et les ressources de la machine.</p>
           </div>
           <div class="actions">
             <button class="btn btn-outline" type="button" data-action="export">Exporter PCAP</button>
           </div>
         </div>
         <div class="monitor-grid">
-          <article class="card mon-tile"><span class="muted">Capture</span><strong id="mon-state">-</strong><small id="mon-state-meta"></small></article>
-          <article class="card mon-tile"><span class="muted">Paquets / s</span><strong id="mon-pps">-</strong><small id="mon-pps-meta"></small></article>
-          <article class="card mon-tile"><span class="muted">Débit</span><strong id="mon-bps">-</strong><small id="mon-bps-meta"></small></article>
-          <article class="card mon-tile"><span class="muted">Paquets perdus</span><strong id="mon-dropped">-</strong><small id="mon-dropped-meta"></small></article>
-          <article class="card mon-tile"><span class="muted">File d'analyse</span><strong id="mon-queue">-</strong><small id="mon-queue-meta"></small></article>
-          <article class="card mon-tile"><span class="muted">Mémoire</span><strong id="mon-memory">-</strong><small id="mon-memory-meta"></small></article>
+          <!-- Pouls : paquets par seconde en tracé d'électrocardiogramme -->
+          <article class="card mon-pulse">
+            <header class="pulse-head">
+              <div class="pulse-state">
+                <span id="mon-led" class="led"></span>
+                <div><strong id="mon-state">-</strong><small id="mon-state-meta"></small></div>
+              </div>
+              <dl class="pulse-figures">
+                <div><dt>Paquets / s</dt><dd id="mon-pps">-</dd></div>
+                <div><dt>Débit</dt><dd id="mon-bps">-</dd></div>
+                <div><dt>Pic sur 2 min</dt><dd id="mon-peak">-</dd></div>
+              </dl>
+            </header>
+            <div id="chart-pps" class="chart pulse-chart" data-label="Paquets par seconde"></div>
+          </article>
+
+          <!-- Pertes : compteur et vumètre de la file d'analyse -->
+          <article class="card mon-loss">
+            <h3>Pertes</h3>
+            <strong id="mon-dropped" class="loss-value">-</strong>
+            <p id="mon-dropped-meta" class="muted"></p>
+            <div id="mon-queue-vu" class="vu" aria-hidden="true"></div>
+            <p class="vu-caption"><span id="mon-queue-led" class="led small"></span><span id="mon-queue-meta"></span></p>
+          </article>
+
+          <!-- Ressources de la machine : cadrans -->
+          <article class="card dial-card" id="dial-cpu"></article>
+          <article class="card dial-card" id="dial-ram"></article>
+          <article class="card dial-card" id="dial-gpu"></article>
 
           <article class="card chart-card">
             <header class="card-head"><h3>Débit</h3><span class="muted">2 dernières minutes</span></header>
-            <div id="chart-bps" class="chart"></div>
-          </article>
-          <article class="card chart-card">
-            <header class="card-head"><h3>Paquets par seconde</h3><span class="muted">2 dernières minutes</span></header>
-            <div id="chart-pps" class="chart"></div>
-          </article>
-
-          <article class="card list-card mon-pipeline">
-            <header class="card-head"><h3>Tampons et files</h3></header>
-            <ul id="mon-pipeline" class="item-list"></ul>
-          </article>
-          <article class="card list-card mon-components">
-            <header class="card-head"><h3>Composants</h3></header>
-            <ul id="mon-components" class="item-list"></ul>
+            <div id="chart-bps" class="chart" data-label="Débit"></div>
           </article>
           <article class="card list-card mon-process">
             <header class="card-head"><h3>Processus</h3></header>
             <dl id="mon-process" class="kv"></dl>
+          </article>
+
+          <article class="card list-card mon-pipeline">
+            <header class="card-head"><h3>Tampons et files</h3><span class="muted">Une structure en rotation remplace ses éléments les plus anciens</span></header>
+            <div id="mon-pipeline" class="pipeline"></div>
           </article>
         </div>
       </section>
