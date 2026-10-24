@@ -469,8 +469,8 @@ kbd {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-areas:
     "k1 k2 k3 k4"
-    "tr tr rm ho"
-    "al al ga ti";
+    "tr tr tr ho"
+    "ga ga ti ti";
   gap: var(--gap);
 }
 [data-kpi="packets"] { grid-area: k1; }
@@ -478,9 +478,7 @@ kbd {
 [data-kpi="flows"] { grid-area: k3; }
 [data-kpi="alerts"] { grid-area: k4; }
 .traffic-card { grid-area: tr; }
-.reminder-card { grid-area: rm; }
 .hosts-card { grid-area: ho; }
-.alerts-card { grid-area: al; }
 .gauge-card { grid-area: ga; }
 .timer-card { grid-area: ti; }
 
@@ -528,12 +526,6 @@ kbd {
 }
 .pill-label { color: var(--muted); font-size: 12px; white-space: nowrap; }
 
-/* Dernière alerte */
-.reminder-card { display: flex; flex-direction: column; }
-.reminder-title { margin: 20px 0 8px; color: var(--primary-strong); font-size: 25px; font-weight: 500; line-height: 1.15; overflow-wrap: anywhere; }
-:root[data-theme="dark"] .reminder-title { color: var(--primary-soft); }
-.reminder-card .btn { margin-top: auto; padding-block: 15px; font-size: 16px; }
-.reminder-card .btn-primary { background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 55%), var(--btn-to); }
 
 /* Listes : lignes avec jauge (hôtes) et chronologie (alertes) */
 .item-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
@@ -558,30 +550,6 @@ kbd {
 .meter { height: 6px; background: var(--surface-2); overflow: hidden; }
 .meter > span { display: block; height: 100%; background: linear-gradient(90deg, var(--primary-soft), var(--primary)); }
 
-.timeline .row { padding-left: 34px; }
-.timeline .row::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 16px;
-  width: 2px;
-  background: var(--line);
-}
-.timeline .row:first-child::before { top: 50%; }
-.timeline .row:last-child::before { bottom: 50%; }
-.timeline .row:only-child::before { display: none; }
-.event-dot {
-  position: absolute;
-  top: 50%;
-  left: 11px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--sev);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sev) 22%, transparent);
-  transform: translateY(-50%);
-}
 [data-sev="4"] { --sev: var(--crit); }
 [data-sev="3"] { --sev: var(--high); }
 [data-sev="2"] { --sev: var(--med); }
@@ -1018,7 +986,7 @@ pre.server { border-left: 4px solid var(--server); }
   .mon-process { grid-column: span 6; }
   .dash-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-areas: "k1 k2" "k3 k4" "tr tr" "rm ho" "al al" "ga ti";
+    grid-template-areas: "k1 k2" "k3 k4" "tr tr" "ho ho" "ga ti";
   }
 }
 
@@ -1042,7 +1010,7 @@ pre.server { border-left: 4px solid var(--server); }
   .dial-card { grid-column: span 6; }
   .pulse-figures { gap: 18px; }
   h1 { font-size: 28px; }
-  .dash-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "k1" "k2" "k3" "k4" "tr" "rm" "ho" "al" "ga" "ti"; }
+  .dash-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "k1" "k2" "k3" "k4" "tr" "ho" "ga" "ti"; }
   .source div { display: none; }
   .kpi-value { font-size: 40px; }
   .pills { gap: 6px; height: 170px; }

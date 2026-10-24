@@ -473,35 +473,9 @@ function renderTalkers(talkers) {
       details: meta("Les hôtes apparaissent dès les premiers paquets.") })]));
 }
 
-function renderRecentAlerts(alerts) {
-  const recent = alerts.slice(-5).reverse();
-  $("#recent-alerts").replaceChildren(...(recent.length
-    ? recent.map((a) => row({
-      lead: h("span", { class: "event-dot" }),
-      attrs: { "data-sev": a.severity },
-      title: a.title,
-      trailing: severityPill(a.severity),
-      details: meta(`${a.category} · ${a.src} → ${a.dst} · ${fmt.ago(a.ts)}`),
-      onClick: () => openAlert(a),
-    }))
-    : [row({ lead: h("span", { class: "event-dot" }), attrs: { "data-sev": "ok" }, title: "Aucune alerte",
-      trailing: h("span", { class: "status ok-pill" }, "Sain"), details: meta("Rien de suspect détecté.") })]));
-
-  const latest = [...alerts].reverse().find((a) => a.severity >= 3) ?? alerts[alerts.length - 1];
-  const button = $("#last-alert-open");
-  $("#last-alert-title").textContent = latest ? latest.title : "Aucune alerte";
-  $("#last-alert-meta").textContent = latest
-    ? `${SEVERITY[latest.severity]} · ${fmt.time(latest.time)} · ${latest.src} → ${latest.dst}`
-    : "Le réseau semble calme.";
-  button.disabled = !latest;
-  button.onclick = latest ? () => openAlert(latest) : null;
-}
-
 async function refreshDashboard() {
-  const after = Math.max(0, (state.status?.last_alert ?? 0) - 20);
-  const [analytics, alerts] = await Promise.all([api("/api/analytics", { limit: 6 }), api("/api/alerts", { after })]);
+  const analytics = await api("/api/analytics", { limit: 6 });
   renderTalkers(analytics.talkers);
-  renderRecentAlerts(alerts.items);
   renderGauge(analytics.encryption);
 }
 
