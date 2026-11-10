@@ -464,18 +464,20 @@ kbd {
 .list-card > .card-head .btn-outline { border-color: var(--primary); background: rgba(255, 255, 255, 0.08); color: #fff; }
 .list-card > .card-head .btn-outline:hover { background: rgba(255, 255, 255, 0.16); }
 
+/* 12 colonnes : quatre indicateurs de même largeur, puis Trafic (5), Chiffrement (3)
+   et Hôtes actifs (4), assez large pour une adresse IP complète. */
 .dash-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-template-areas:
-    "k1 k2 k3 ti"
-    "tr tr ga ho";
+    "k1 k1 k1 k2 k2 k2 k3 k3 k3 ti ti ti"
+    "tr tr tr tr tr ga ga ga ho ho ho ho";
   gap: var(--gap);
 }
 [data-kpi="packets"] { grid-area: k1; }
 [data-kpi="traffic"] { grid-area: k2; }
 [data-kpi="flows"] { grid-area: k3; }
-.traffic-card { grid-area: tr; }
+.traffic-card { grid-area: tr; display: flex; flex-direction: column; }
 .hosts-card { grid-area: ho; }
 .gauge-card { grid-area: ga; }
 .timer-card { grid-area: ti; }
@@ -492,7 +494,7 @@ kbd {
 .kpi-hero .round-btn { border-color: transparent; background: rgba(255, 255, 255, 0.92); color: var(--on-light); }
 
 /* Histogramme à piliers */
-.pills { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 14px; height: 240px; padding-top: 30px; }
+.pills { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 14px; flex: 1; min-height: 240px; padding-top: 30px; }
 .pill-col { display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; }
 .pill-track { position: relative; display: flex; flex: 1; align-items: flex-end; justify-content: center; width: 100%; }
 .pill {
@@ -580,7 +582,8 @@ kbd {
 
 /* Jauge */
 .gauge-card { display: flex; flex-direction: column; }
-.gauge { position: relative; width: 100%; max-width: 300px; margin: 18px auto 6px; }
+.gauge-card .legend { margin-bottom: auto; }
+.gauge { position: relative; width: 100%; max-width: 300px; margin: auto auto 6px; padding-top: 18px; }
 .gauge svg { display: block; width: 100%; overflow: visible; }
 .gauge-track, .gauge-seg { fill: none; stroke-width: 34; stroke-linecap: round; }
 .gauge-track { stroke: var(--surface-2); }
@@ -684,6 +687,7 @@ kbd {
 .mon-pulse { display: flex; flex-direction: column; gap: 6px; }
 .pulse-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 28px; }
 .pulse-state { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.pulse-state > div { min-width: 0; }
 .pulse-state .led { width: 16px; height: 16px; }
 .pulse-state strong { display: block; font-size: 20px; font-weight: 600; }
 .pulse-state small { display: block; overflow: hidden; color: var(--muted); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
@@ -992,7 +996,9 @@ pre.server { border-left: 4px solid var(--server); }
   .page { overflow: visible; }
   .sidebar { padding: 14px 0 10px; }
   .brand { padding: 0 16px 10px; }
-  .nav { flex-direction: row; overflow-x: auto; padding: 0 8px; }
+  .nav { flex-direction: row; overflow-x: auto; padding: 0 32px 0 8px;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent); }
   .nav-title, .promo, .nav-item.active::before { display: none; }
   .nav-item { flex: none; padding: 8px 14px; border-radius: 999px; white-space: nowrap; }
   .nav-item.active { background: var(--primary-tint); }
@@ -1010,6 +1016,6 @@ pre.server { border-left: 4px solid var(--server); }
   .dash-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "k1" "k2" "k3" "ti" "tr" "ga" "ho"; }
   .source div { display: none; }
   .kpi-value { font-size: 40px; }
-  .pills { gap: 6px; height: 170px; }
+  .pills { gap: 6px; min-height: 170px; }
   .message-actions { flex-direction: column-reverse; }
 }

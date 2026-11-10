@@ -968,7 +968,9 @@ async function refreshMonitor() {
   $("#mon-led").dataset.level = m.error ? "crit" : running ? "ok" : "off";
   $("#mon-led").classList.toggle("beating", running && !m.error);
   $("#mon-state").textContent = m.error ? "Erreur de capture" : modeLabel;
-  $("#mon-state-meta").textContent = m.error || `${m.source || "Interface par défaut"} · BPF ${m.bpf || "aucun"}`;
+  const stateMeta = $("#mon-state-meta");
+  stateMeta.textContent = m.error || `${m.source || "Interface par défaut"} · BPF ${m.bpf || "aucun"}`;
+  stateMeta.title = stateMeta.textContent; // texte complet au survol quand il est tronqué
   $("#mon-pps").textContent = fmt.count(last(m.pps));
   $("#mon-bps").textContent = fmt.bits(last(m.bps));
   $("#mon-peak").textContent = `${fmt.count(Math.max(0, ...m.pps))}/s`;
